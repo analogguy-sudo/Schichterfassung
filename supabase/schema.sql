@@ -3,7 +3,7 @@ create extension if not exists pgcrypto;
 create table if not exists public.entries (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
-  kind text not null check (kind in ('shift','office','rest','vacation','sick')),
+  kind text not null check (kind in ('shift','office','rest','vacation','sick','dispo')),
   title text not null default '',
   shift_number text not null default '',
   start_date date not null,
@@ -15,10 +15,14 @@ create table if not exists public.entries (
   actual_end time,
   created_at timestamptz not null default now(),
   check (end_date >= start_date),
-  check ((kind in ('shift','office') and start_time is not null and end_time is not null) or (kind in ('rest','vacation','sick') and start_time is null and end_time is null)),
+  check ((kind in ('shift','office') and start_time is not null and end_time is not null) or (kind in ('rest','vacation','sick','dispo') and start_time is null and end_time is null)),
   check (kind = 'shift' or (actual_start is null and actual_end is null))
 );
 alter table public.entries add column if not exists title text not null default '';
+alter table public.entries drop constraint if exists entries_kind_check;
+alter table public.entries add constraint entries_kind_check check (kind in ('shift','office','rest','vacation','sick','dispo'));
+alter table public.entries drop constraint if exists entries_check1;
+alter table public.entries add constraint entries_check1 check ((kind in ('shift','office') and start_time is not null and end_time is not null) or (kind in ('rest','vacation','sick','dispo') and start_time is null and end_time is null));
 alter table public.entries enable row level security;
 revoke all on public.entries from anon;
 grant select, insert, update, delete on public.entries to authenticated;

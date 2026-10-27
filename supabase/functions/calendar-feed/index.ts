@@ -48,7 +48,7 @@ async function getRows<T>(table: string, params: URLSearchParams): Promise<T[]> 
 }
 
 const entryTypes: Record<string, string> = {
-  shift: 'Schicht', office: 'Büro', rest: 'Ruhe', vacation: 'Urlaub', sick: 'Krank',
+  shift: 'Schicht', office: 'Büro', rest: 'Ruhe', vacation: 'Urlaub', sick: 'Krank', dispo: 'Dispo-Tag',
 };
 
 Deno.serve(async (request) => {

@@ -1,6 +1,6 @@
 # Schichterfassung
 
-Private Web-App für Schicht, Büro, Ruhe, Urlaub und Krank. Die Oberfläche wird als GitHub Pages Seite ausgeliefert; Supabase speichert angemeldete Einträge mit Row Level Security und stellt den iCalendar-Feed über eine Edge Function bereit.
+Private Web-App für Schicht, Büro, Ruhe, Urlaub, Krank und Dispo-Tage. Die Oberfläche wird als GitHub Pages Seite ausgeliefert; Supabase speichert angemeldete Einträge mit Row Level Security und stellt den iCalendar-Feed über eine Edge Function bereit.
 
 ## Supabase einmalig einrichten
 
@@ -16,6 +16,8 @@ Nach dem Verbinden werden neue Einträge in Supabase gespeichert. Ohne Supabase 
 
 - **Schicht:** Schichtnummer, Dienstzeiten, Pause (keine/30/45 Min.) und abweichende tatsächliche Zeiten.
 - **Büro:** Beginn, Ende und Pause; optional mit eigener Bezeichnung für den Kalender.
-- **Ruhe, Urlaub, Krank:** Ganztägige Einträge; Urlaub und Krank können über mehrere Tage gehen.
+- **Ruhe, Urlaub, Krank, Dispo-Tag:** Ganztägige Einträge; Abwesenheiten können über mehrere Tage gehen.
+
+Bei einer bereits eingerichteten Supabase-Datenbank die Migration `supabase/migrations/20261027_add_dispo_type.sql` einmal im SQL Editor ausführen.
 
 Die Supabase-Tabelle ist mit Row Level Security auf den angemeldeten Nutzer begrenzt. Die Kalender-Feed-Adresse enthält ein geheimes Token. Jeder, der diese Adresse kennt, kann den Kalender abonnieren; mit „Feed-Link erneuern“ wird der vorherige Link ungültig.
