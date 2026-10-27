@@ -2,11 +2,106 @@
 <html lang="de">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f4f2ed">
-<title>Schichterfassung</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="edit.css?v=day-panel-1">
+<script>
+(function(){
+  const key='schichtplan.theme', system=window.matchMedia('(prefers-color-scheme: dark)');
+  let preference=null;
+  try{preference=localStorage.getItem(key)}catch{}
+  if(!['light','dark'].includes(preference))preference=null;
+  function apply(theme){
+    document.documentElement.dataset.theme=theme;
+    const meta=document.querySelector('meta[name="theme-color"]');
+    if(meta)meta.content=theme==='dark'?'#151c18':'#f4f2ed';
+    const button=document.getElementById('themeToggle');
+    if(button){
+      const dark=theme==='dark';
+      button.setAttribute('aria-label',dark?'Hellmodus aktivieren':'Dunkelmodus aktivieren');
+      button.setAttribute('aria-pressed',String(dark));
+      button.title=dark?'Zum Hellmodus wechseln':'Zum Dunkelmodus wechseln';
+      button.querySelector('.theme-icon').textContent=dark?'☀':'☾';
+      button.querySelector('.theme-label').textContent=dark?'Hell':'Dunkel';
+    }
+  }
+  const current=()=>preference||(system.matches?'dark':'light');
+  apply(current());
+  document.addEventListener('DOMContentLoaded',()=>{
+    apply(current());
+    document.getElementById('themeToggle').addEventListener('click',()=>{
+      preference=document.documentElement.dataset.theme==='dark'?'light':'dark';
+      try{localStorage.setItem(key,preference)}catch{}
+      apply(preference);
+    });
+  });
+  system.addEventListener('change',()=>{if(!preference)apply(current())});
+  window.addEventListener('storage',event=>{
+    if(event.key!==key&&event.key!==null)return;
+    preference=['light','dark'].includes(event.newValue)?event.newValue:null;
+    apply(current());
+  });
+})();
+</script>
+<title>Schichterfassung</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="edit.css?v=theme-1">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="config.js"></script>
+<style>
+:root{color-scheme:light}
+.header-actions{display:flex;align-items:center;justify-content:flex-end;gap:16px}
+.theme-toggle{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:34px;padding:7px 11px;border:1px solid var(--line);border-radius:8px;background:var(--white);color:var(--ink);font:600 11px 'DM Sans',sans-serif;cursor:pointer;white-space:nowrap}
+.theme-toggle:hover{border-color:var(--green)}
+.theme-toggle:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+.theme-icon{font-size:17px;line-height:1}
+:root[data-theme="dark"]{color-scheme:dark;--paper:#151c18;--white:#1e2821;--ink:#edf2ec;--muted:#aab6a9;--line:#3b493d;--green:#9ac8a5;--pale:#2b3c2e;--orange:#e69774}
+[data-theme="dark"] .topbar{border-color:var(--line)}
+[data-theme="dark"] .stats article,[data-theme="dark"] .panel{border-color:#344136}
+[data-theme="dark"] .brand-mark,[data-theme="dark"] .submit{background:#416c52;color:#f5faf4}
+[data-theme="dark"] .submit:hover{background:#507e60}
+[data-theme="dark"] .brand-sub,[data-theme="dark"] .account,[data-theme="dark"] .lede,[data-theme="dark"] .field,[data-theme="dark"] .deviation summary,[data-theme="dark"] .entry-length{color:#b4c0b2}
+[data-theme="dark"] .eyebrow,[data-theme="dark"] .stat-label,[data-theme="dark"] .stat-foot,[data-theme="dark"] .weekdays span,[data-theme="dark"] .legend,[data-theme="dark"] .list-month,[data-theme="dark"] .hint,[data-theme="dark"] .entry-info span,[data-theme="dark"] .entry-date,[data-theme="dark"] footer{color:#a8b5a6}
+[data-theme="dark"] .eyebrow span{color:#839581}
+[data-theme="dark"] .field input,[data-theme="dark"] .field select{background:#172019;border-color:#48584a;color:var(--ink)}
+[data-theme="dark"] .field input::placeholder{color:#97a593;opacity:1}
+[data-theme="dark"] .field input:focus,[data-theme="dark"] .field select:focus{border-color:var(--green);box-shadow:0 0 0 2px #9ac8a52e}
+[data-theme="dark"] .month-nav button{color:var(--ink)}
+[data-theme="dark"] .day{color:#d8e2d5}
+[data-theme="dark"] .day.dim{color:#859280}
+[data-theme="dark"] .day:hover{background:#324333}
+[data-theme="dark"] .day.today{background:#9ac8a5;color:#15271a}
+[data-theme="dark"] .day.today .dot{background:#243c29}
+[data-theme="dark"] .day.today.selected{box-shadow:inset 0 0 0 2px #d2ead0}
+[data-theme="dark"] .legend,[data-theme="dark"] .entry-row,[data-theme="dark"] .toggle-row{border-color:#3b493d}
+[data-theme="dark"] .entry-date b,[data-theme="dark"] .empty b{color:#d6e1d2}
+[data-theme="dark"] .entry-kind{background:#334736;color:#d1e9ce}
+[data-theme="dark"] .entry-kind.office{background:#303f55;color:#c3d8f4}
+[data-theme="dark"] .entry-kind.rest{background:#374433;color:#d7e4c9}
+[data-theme="dark"] .entry-kind.vacation{background:#4c4225;color:#eed895}
+[data-theme="dark"] .entry-kind.sick{background:#4c3034;color:#f0bec4}
+[data-theme="dark"] .entry-kind.dispo{background:#43344d;color:#dcc3ef}
+[data-theme="dark"] .dot.shift{background:#e69774}
+[data-theme="dark"] .dot.office{background:#91b0dc}
+[data-theme="dark"] .dot.rest{background:#b4c8a1}
+[data-theme="dark"] .dot.vacation{background:#e0bd64}
+[data-theme="dark"] .dot.sick{background:#df989e}
+[data-theme="dark"] .dot.dispo{background:#be9bd8}
+[data-theme="dark"] .secondary{background:#29392c;border-color:#526950;color:#d4ead0}
+[data-theme="dark"] .secondary:hover{background:#354b39}
+[data-theme="dark"] .edit,[data-theme="dark"] .delete,[data-theme="dark"] .close{color:#b3c5ac}
+[data-theme="dark"] .edit:hover{background:#344a38;color:#e1f5db}
+[data-theme="dark"] .delete:hover{background:#533236;color:#ffc3c7}
+[data-theme="dark"] .calendar-connect{background:#263529;border-color:#435441}
+[data-theme="dark"] .connect-icon{background:#354b38;color:#c3e1be}
+[data-theme="dark"] .connect-copy>p:last-child,[data-theme="dark"] .connect-actions small{color:#b3c1ac}
+[data-theme="dark"] .status-dot.online{background:#a1c895;box-shadow:0 0 0 3px #334b36}
+[data-theme="dark"] .quiet:disabled{color:#8e9b88}
+[data-theme="dark"] .empty{color:#acbba6}
+[data-theme="dark"] .empty span:first-child{color:#aac7a1}
+[data-theme="dark"] .error{color:#f2a2a2}
+[data-theme="dark"] dialog{box-shadow:0 20px 80px #0009}
+[data-theme="dark"] dialog::backdrop{background:#080e0aca}
+[data-theme="dark"] #toast{background:#d5e7d1;color:#1a2a1c}
+@media(max-width:600px){.topbar{height:auto;min-height:82px;padding:16px 0;flex-wrap:wrap;gap:14px}.header-actions{width:100%;justify-content:space-between;gap:10px}.theme-toggle{min-height:36px}.header-actions .account{justify-content:flex-end;flex-wrap:wrap}.header-actions .account #storageStatus{max-width:145px}}
+</style>
 </head>
 <body><div class="shell">
-<header class="topbar"><a class="brand" href="#"><span class="brand-mark">S</span><span>Schichterfassung<span class="brand-sub">PERSÖNLICHER KALENDER</span></span></a><div class="account"><span class="status-dot"></span><span id="storageStatus">Nur auf diesem Gerät</span><button id="authButton" class="quiet" type="button">Mit Supabase verbinden</button></div></header>
+<header class="topbar"><a class="brand" href="#"><span class="brand-mark">S</span><span>Schichterfassung<span class="brand-sub">PERSÖNLICHER KALENDER</span></span></a><div class="header-actions"><button id="themeToggle" class="theme-toggle" type="button" aria-label="Dunkelmodus aktivieren" aria-pressed="false"><span class="theme-icon" aria-hidden="true">☾</span><span class="theme-label">Dunkel</span></button><div class="account"><span class="status-dot"></span><span id="storageStatus">Nur auf diesem Gerät</span><button id="authButton" class="quiet" type="button">Mit Supabase verbinden</button></div></div></header>
 <main>
 <section class="intro"><div><p class="eyebrow">ÜBERSICHT <span>·</span> <span id="todayLabel"></span></p><h1>Dein Dienst.<br><em>Dein Überblick.</em></h1><p class="lede">Schichten, Bürotage, Ruhe, Urlaub, Krankheit und Dispo-Tage an einem Ort. Privat gespeichert und mit deinem Kalender synchronisierbar.</p></div></section>
 <section class="stats"><article><span class="stat-label">SCHICHTEN</span><strong id="statShifts">0</strong><span class="stat-foot">im Monat</span></article><article><span class="stat-label">DIENSTSTUNDEN</span><strong id="statHours">0<small> h</small></strong><span class="stat-foot">Schicht &amp; Büro, abzüglich Pause</span></article><article><span class="stat-label">RUHE &amp; ABWESENHEIT</span><strong id="statAway">0</strong><span class="stat-foot">Ruhe, Urlaub, Krank, Dispo</span></article><article><span class="stat-label">ABWEICHUNGEN</span><strong id="statDeviations">0</strong><span class="stat-foot">vom Dienstauftrag</span></article></section>
@@ -24,4 +119,4 @@
 </main><footer><span>Schichterfassung · Privat &amp; persönlich</span><span>Keine Schichtdaten im GitHub-Repo</span></footer>
 </div>
 <dialog id="authDialog"><form id="authForm" method="dialog"><button class="close" type="button" id="closeAuth" aria-label="Schließen">×</button><p class="eyebrow">SUPABASE-KONTO</p><h2 id="authTitle">Anmelden</h2><p class="hint" id="authHint">Melde dich an, um Einträge sicher in deiner Datenbank zu speichern.</p><label class="field">E-Mail<input type="email" name="email" required autocomplete="email"></label><label class="field">Passwort<input type="password" name="password" required minlength="8" autocomplete="current-password"></label><p id="authError" class="error" hidden></p><div class="dialog-actions"><button class="text-button" id="toggleAuth" type="button">Konto erstellen</button><button class="submit" id="authSubmit" type="submit">Anmelden</button></div></form></dialog>
-<div id="toast" role="status" aria-live="polite"></div><script src="app.js?v=day-panel-1"></script></body></html>
+<div id="toast" role="status" aria-live="polite"></div><script src="app.js?v=theme-1"></script></body></html>
