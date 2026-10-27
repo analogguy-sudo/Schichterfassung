@@ -1,50 +1,130 @@
-import { createClient } from 'npm:@supabase/supabase-js@2';
-
 const encoder = new TextEncoder();
-const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-const text = (value: unknown) => String(value ?? '').replace(/\\/g, '\\\\').replace(/\r?\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;');
-const date = (value: string) => value.replaceAll('-', '');
-const sha256 = async (value: string) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', encoder.encode(value)))].map(x => x.toString(16).padStart(2, '0')).join('');
-const utc = (day: string, time: string) => {
-  const guess = new Date(`${day}T${time}:00Z`);
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).formatToParts(guess);
-  const values = Object.fromEntries(parts.map(p => [p.type, p.value]));
-  const localAsUtc = Date.UTC(+values.year, +values.month - 1, +values.day, +values.hour, +values.minute, +values.second);
-  return new Date(guess.getTime() - (localAsUtc - guess.getTime()));
+const projectUrl = Deno.env.get('SUPABASE_URL')!;
+const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const restHeaders = {
+  apikey: serviceKey,
+  Authorization: `Bearer ${serviceKey}`,
 };
-const utcStamp = (day: string, time: string) => utc(day, time).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
-const types: Record<string, string> = { shift: 'Schicht', office: 'Büro', rest: 'Ruhe', vacation: 'Urlaub', sick: 'Krank' };
 
-Deno.serve(async (req) => {
-  const token = new URL(req.url).searchParams.get('token');
+const escapeIcs = (value: unknown) => String(value ?? '')
+  .replace(/\\/g, '\\\\')
+  .replace(/\r?\n/g, '\\n')
+  .replace(/,/g, '\\,')
+  .replace(/;/g, '\\;');
+
+const dateStamp = (value: string) => value.replaceAll('-', '');
+
+async function sha256(value: string) {
+  const digest = await crypto.subtle.digest('SHA-256', encoder.encode(value));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function lastSunday(year: number, month: number) {
+  const lastDay = new Date(Date.UTC(year, month, 0));
+  return lastDay.getUTCDate() - lastDay.getUTCDay();
+}
+
+function berlinOffsetMinutes(day: string, time: string) {
+  const [year, month, date] = day.split('-').map(Number);
+  const marchSunday = lastSunday(year, 3);
+  const octoberSunday = lastSunday(year, 10);
+  const summerTime = month > 3 && month < 10
+    || (month === 3 && (date > marchSunday || (date === marchSunday && time >= '02:00')))
+    || (month === 10 && (date < octoberSunday || (date === octoberSunday && time < '03:00')));
+  return summerTime ? 120 : 60;
+}
+
+function utcStamp(day: string, time: string) {
+  const [year, month, date] = day.split('-').map(Number);
+  const [hour, minute] = time.slice(0, 5).split(':').map(Number);
+  const utc = new Date(Date.UTC(year, month - 1, date, hour, minute) - berlinOffsetMinutes(day, time) * 60_000);
+  return utc.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+}
+
+async function getRows<T>(table: string, params: URLSearchParams): Promise<T[]> {
+  const response = await fetch(`${projectUrl}/rest/v1/${table}?${params}`, { headers: restHeaders });
+  if (!response.ok) throw new Error(`Database request failed (${response.status})`);
+  return await response.json();
+}
+
+const entryTypes: Record<string, string> = {
+  shift: 'Schicht', office: 'Büro', rest: 'Ruhe', vacation: 'Urlaub', sick: 'Krank',
+};
+
+Deno.serve(async (request) => {
+  const token = new URL(request.url).searchParams.get('token');
   if (!token || token.length < 32) return new Response('Not found', { status: 404 });
-  const { data: feed, error: feedError } = await db.from('calendar_feeds').select('user_id').eq('token_hash', await sha256(token)).maybeSingle();
-  if (feedError || !feed) return new Response('Not found', { status: 404 });
-  const { data: entries, error } = await db.from('entries').select('*').eq('user_id', feed.user_id).order('start_date');
-  if (error) return new Response('Calendar temporarily unavailable', { status: 503 });
 
-  const events = (entries || []).map((e) => {
-    const timed = e.kind === 'shift' || e.kind === 'office';
-    const startTime = e.actual_start || e.start_time;
-    const endTime = e.actual_end || e.end_time;
-    const summary = e.kind === 'shift' ? `Schicht ${e.shift_number || ''}`.trim() : types[e.kind];
-    const uid = `${e.id}@schichterfassung`;
-    const lines = ['BEGIN:VEVENT', `UID:${uid}`, `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')}`, `SUMMARY:${text(summary)}`];
-    if (timed) {
-      let endDate = e.start_date;
-      if (endTime <= startTime) {
-        const d = new Date(`${endDate}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + 1); endDate = d.toISOString().slice(0, 10);
+  try {
+    const feedParams = new URLSearchParams({
+      select: 'user_id',
+      token_hash: `eq.${await sha256(token)}`,
+      limit: '1',
+    });
+    const feeds = await getRows<{ user_id: string }>('calendar_feeds', feedParams);
+    if (!feeds[0]) return new Response('Not found', { status: 404 });
+
+    const entryParams = new URLSearchParams({
+      select: '*',
+      user_id: `eq.${feeds[0].user_id}`,
+      order: 'start_date.asc',
+    });
+    const entries = await getRows<any>('entries', entryParams);
+    const now = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+    const events = entries.map((entry) => {
+      const timed = entry.kind === 'shift' || entry.kind === 'office';
+      const startTime = entry.actual_start || entry.start_time;
+      const endTime = entry.actual_end || entry.end_time;
+      const summary = entry.kind === 'shift'
+        ? `Schicht ${entry.shift_number || ''}`.trim()
+        : entryTypes[entry.kind] || 'Eintrag';
+      const lines = [
+        'BEGIN:VEVENT',
+        `UID:${entry.id}@schichterfassung`,
+        `DTSTAMP:${now}`,
+        `SUMMARY:${escapeIcs(summary)}`,
+      ];
+
+      if (timed) {
+        let endDate = entry.start_date;
+        if (endTime <= startTime) {
+          const nextDay = new Date(`${endDate}T12:00:00Z`);
+          nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+          endDate = nextDay.toISOString().slice(0, 10);
+        }
+        lines.push(`DTSTART:${utcStamp(entry.start_date, startTime)}`);
+        lines.push(`DTEND:${utcStamp(endDate, endTime)}`);
+        const description = [
+          `Pause: ${entry.break_minutes || 0} min`,
+          ...(entry.kind === 'shift' ? [`Frankfurt (7 min): ${entry.frankfurt ? 'Ja' : 'Nein'}`] : []),
+          ...(entry.actual_start || entry.actual_end ? ['Abweichung vom Dienstauftrag'] : []),
+        ].join('\n');
+        lines.push(`DESCRIPTION:${escapeIcs(description)}`);
+      } else {
+        const dayAfter = new Date(`${entry.end_date}T12:00:00Z`);
+        dayAfter.setUTCDate(dayAfter.getUTCDate() + 1);
+        lines.push(`DTSTART;VALUE=DATE:${dateStamp(entry.start_date)}`);
+        lines.push(`DTEND;VALUE=DATE:${dateStamp(dayAfter.toISOString().slice(0, 10))}`);
       }
-      lines.push(`DTSTART:${utcStamp(e.start_date, startTime)}`, `DTEND:${utcStamp(endDate, endTime)}`);
-      const description = [`Pause: ${e.break_minutes || 0} min`, ...(e.kind === 'shift' ? [`Frankfurt (7 min): ${e.frankfurt ? 'Ja' : 'Nein'}`] : []), ...(e.actual_start || e.actual_end ? ['Abweichung vom Dienstauftrag'] : [])].join('\n');
-      lines.push(`DESCRIPTION:${text(description)}`);
-    } else {
-      const d = new Date(`${e.end_date}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + 1);
-      lines.push(`DTSTART;VALUE=DATE:${date(e.start_date)}`, `DTEND;VALUE=DATE:${date(d.toISOString().slice(0, 10))}`);
-    }
-    lines.push('END:VEVENT');
-    return lines.join('\r\n');
-  });
-  const body = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Schichterfassung//DE', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', ...events, 'END:VCALENDAR', ''].join('\r\n');
-  return new Response(body, { headers: { 'Content-Type': 'text/calendar; charset=utf-8', 'Content-Disposition': 'inline; filename="schichterfassung.ics"', 'Cache-Control': 'private, max-age=300', 'X-Content-Type-Options': 'nosniff' } });
+
+      lines.push('END:VEVENT');
+      return lines.join('\r\n');
+    });
+
+    const body = [
+      'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Schichterfassung//DE',
+      'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', ...events, 'END:VCALENDAR', '',
+    ].join('\r\n');
+    return new Response(body, {
+      headers: {
+        'Content-Type': 'text/calendar; charset=utf-8',
+        'Content-Disposition': 'inline; filename="schichterfassung.ics"',
+        'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff',
+      },
+    });
+  } catch (error) {
+    console.error('Calendar feed request failed:', error instanceof Error ? error.message : 'Unknown error');
+    return new Response('Calendar temporarily unavailable', { status: 503 });
+  }
 });
