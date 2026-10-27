@@ -1,15 +1,64 @@
+const authUrl=new URL(window.location.href), authHash=new URLSearchParams(authUrl.hash.slice(1));
+const authLink={type:authHash.get('type')||authUrl.searchParams.get('type')||'',tokenHash:authUrl.searchParams.get('token_hash'),error:authHash.get('error')||authUrl.searchParams.get('error'),hasTokens:!!authHash.get('access_token')};
+let authReady=false,needsPasswordSetup=false,authBooting=true,authGeneration=0,authNotice='',initialSetup=['invite','recovery'].includes(authLink.type)&&(authLink.hasTokens||!!authLink.tokenHash)?authLink.type:'';
+const AUTH_REDIRECT_URL='https://analogguy-sudo.github.io/Schichterfassung/';
 const $=s=>document.querySelector(s), form=$('#entryForm'), TYPES={shift:'Schicht',office:'Büro',rest:'Ruhe',vacation:'Urlaub',sick:'Krank',dispo:'Dispo-Tag'};
 function authErrorText(error){const message=String(error?.message||'').toLowerCase();if(error?.code==='over_email_send_rate_limit'||message.includes('email rate limit exceeded'))return 'Der Supabase-Mailversand hat sein Limit erreicht (2 E-Mails pro Stunde für das ganze Projekt). Bitte warte bis zu einer Stunde und versuche es dann erneut. Mit eigenem SMTP-Mailversand lässt sich dieses enge Standardlimit vermeiden.';if(error?.code==='email_address_not_authorized'||message.includes('email address not authorized'))return 'Der Supabase-Standardversand darf nur an Projektmitglieder senden. Für andere E-Mail-Adressen muss in Supabase ein eigener SMTP-Mailversand eingerichtet werden.';return error?.message||'Anmeldung fehlgeschlagen. Bitte versuche es erneut.'}
 const today=new Date(), dateISO=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 const monthFmt=new Intl.DateTimeFormat('de-DE',{month:'long',year:'numeric'}), dayFmt=new Intl.DateTimeFormat('de-DE',{weekday:'short',day:'2-digit',month:'2-digit'}), longDayFmt=new Intl.DateTimeFormat('de-DE',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 let cursor=new Date(today.getFullYear(),today.getMonth(),1), entries=[], user=null, supa=null, authMode='login', editingId=null, selectedDate=null, dayPanelMode='form';
 const config=window.SCHICHTPLAN_CONFIG||{};
-if(window.supabase?.createClient&&config.url&&config.publishableKey&&!config.url.includes('DEIN_')&&!config.publishableKey.includes('DEIN_')){supa=window.supabase.createClient(config.url,config.publishableKey);}
-const localKey='schichtplan.entries.v2';
-function readLocal(){try{return JSON.parse(localStorage.getItem(localKey)||'[]')}catch{return []}}
-function writeLocal(){localStorage.setItem(localKey,JSON.stringify(entries))}
+if(window.supabase?.createClient&&config.url&&config.publishableKey&&!config.url.includes('DEIN_')&&!config.publishableKey.includes('DEIN_')){supa=window.supabase.createClient(config.url,config.publishableKey,{auth:{detectSessionInUrl:true,flowType:'implicit',persistSession:true,autoRefreshToken:true}});}
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600)}
-function showMode(){const cloud=!!(supa&&user);$('#storageStatus').textContent=cloud?'Sicher in Supabase gespeichert':'Nur auf diesem Gerät';$('.status-dot').classList.toggle('online',cloud);$('#authButton').textContent=cloud?'Abmelden':(supa?'Bei Supabase anmelden':'Supabase noch nicht eingerichtet');$('#authButton').disabled=!supa;$('#copyFeed').hidden=!cloud;$('#rotateFeed').hidden=!cloud;$('#feedHint').textContent=cloud?'Feed-Link ist geheim. Wer den Link kennt, kann deinen Kalender lesen.':'Deine Einträge bleiben auf diesem Gerät, bis Supabase verbunden ist.';}
+function showMode(){
+ const ready=!!(supa&&user&&authReady&&!needsPasswordSetup);
+ $('#appContent').hidden=!ready;$('#authGate').hidden=ready;
+ $('#storageStatus').textContent=ready?'Sicher in Supabase gespeichert':user&&needsPasswordSetup?'Konto einrichten':authReady?'Bitte anmelden':'Anmeldung wird geprüft…';
+ $('.status-dot').classList.toggle('online',ready);
+ $('#authButton').textContent=user?'Abmelden':'Anmelden';$('#authButton').disabled=!supa||!authReady;
+ $('#copyFeed').hidden=!ready;$('#rotateFeed').hidden=!ready;
+ $('#feedHint').textContent='Dein Feed-Link ist geheim. Wer den Link kennt, kann deinen Kalender lesen.';
+ $('#passwordSetupForm').hidden=!(user&&needsPasswordSetup);
+ $('#gateLogin').hidden=!!(user&&needsPasswordSetup);$('#gateLogin').disabled=!supa||!authReady;
+ $('#gateTitle').textContent=user&&needsPasswordSetup?'Dein Konto einrichten':'Deine Schichten. Dein Konto.';
+ $('#gateMessage').textContent=authNotice||(user&&needsPasswordSetup?'Deine E-Mail ist bestätigt. Lege jetzt dein persönliches Passwort fest.':!supa?'Die Anmeldung ist gerade nicht verfügbar. Bitte lade die Seite erneut.':!authReady?'Deine Anmeldung wird geprüft…':'Melde dich an, um deinen persönlichen Kalender und dein Stundenkonto zu öffnen.');
+}
+function pendingSetup(userId){try{return sessionStorage.getItem(`schichtplan.setup.${userId}`)==='pending'}catch{return false}}
+function markSetup(userId,pending){try{if(pending)sessionStorage.setItem(`schichtplan.setup.${userId}`,'pending');else sessionStorage.removeItem(`schichtplan.setup.${userId}`)}catch{}}
+function cleanAuthUrl(){
+ const url=new URL(window.location.href);
+ for(const name of ['token_hash','type','code','error','error_code','error_description'])url.searchParams.delete(name);
+ if(authLink.hasTokens||authLink.error||authLink.type)url.hash='';
+ window.history.replaceState({},document.title,url.pathname+url.search+url.hash);
+}
+function failAuth(message){authGeneration++;user=null;entries=[];editingId=null;needsPasswordSetup=false;authReady=true;authNotice=message;render();showMode();}
+async function resolveAuthSession(session){
+ const generation=++authGeneration;authReady=false;showMode();
+ if(!session?.access_token){user=null;entries=[];editingId=null;needsPasswordSetup=false;authReady=true;render();showMode();return;}
+ const {data,error}=await supa.auth.getUser(session.access_token);
+ if(generation!==authGeneration)return;
+ if(error||!data?.user){failAuth('Deine Anmeldung ist abgelaufen. Bitte melde dich erneut an.');return;}
+ const nextUser=data.user;
+ if(user?.id!==nextUser.id){entries=[];selectedDate=null;resetEntryForm();}
+ user=nextUser;needsPasswordSetup=!!initialSetup||pendingSetup(user.id);initialSetup='';
+ if(needsPasswordSetup)markSetup(user.id,true);
+ authReady=true;authNotice='';
+ if(needsPasswordSetup){entries=[];render();showMode();}else await loadEntries();
+}
+async function initializeAuth(){
+ if(!supa){authBooting=false;failAuth('Die Anmeldung ist gerade nicht verfügbar. Bitte lade die Seite erneut.');return;}
+ try{
+  if(authLink.error)throw new Error('invalid_auth_link');
+  if(authLink.tokenHash){
+   if(!['invite','recovery','signup','email','magiclink'].includes(authLink.type))throw new Error('invalid_auth_link');
+   const {error}=await supa.auth.verifyOtp({token_hash:authLink.tokenHash,type:authLink.type});if(error)throw error;
+  }
+  const {data,error}=await supa.auth.getSession();if(error)throw error;
+  if(initialSetup&&!data.session)throw new Error('invalid_auth_link');
+  authBooting=false;await resolveAuthSession(data.session);
+ }catch{authBooting=false;failAuth('Der Einladungs- oder Bestätigungslink ist ungültig oder abgelaufen. Öffne den neuesten Link aus deiner E-Mail. Wenn du bereits ein Passwort hast, kannst du dich direkt anmelden.');}
+ finally{if(authLink.hasTokens||authLink.tokenHash||authLink.error)cleanAuthUrl();}
+}
 function dateSpan(e){return e.start_date===e.end_date?e.start_date:`${e.start_date} – ${e.end_date}`}
 function mins(e){if(PAID_DAY_KINDS.includes(e.kind))return paidDayMinutes(e,e.start_date,e.end_date);const start=e.actual_start||e.start_time,end=e.actual_end||e.end_time;if(!start||!end)return 0;let [h,m]=start.split(':').map(Number),[eh,em]=end.split(':').map(Number),v=eh*60+em-(h*60+m);if(v<=0)v+=1440;return Math.max(0,v-Number(e.break_minutes||0));}
 const STANDARD_DAY_MINUTES=7*60+48, DEFAULT_ANNUAL_HOURS=2036, PAID_DAY_KINDS=['dispo','vacation','sick'];
@@ -26,9 +75,8 @@ function creditedMinutes(entry,from,to){
  if(PAID_DAY_KINDS.includes(entry.kind))return paidDayMinutes(entry,from,to);
  return ['shift','office'].includes(entry.kind)&&entry.start_date>=from&&entry.start_date<=to?mins(entry):0;
 }
-function localAnnualTargets(){try{const value=JSON.parse(localStorage.getItem('schichtplan.annualTargets')||'{}');return value&&typeof value==='object'&&!Array.isArray(value)?value:{}}catch{return {}}}
 function annualHours(year){
- const value=(user?user.user_metadata?.annual_targets:localAnnualTargets())?.[year];
+ const value=user?.user_metadata?.annual_targets?.[year];
  return typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=10000?value:DEFAULT_ANNUAL_HOURS;
 }
 function renderAnnual(){
@@ -41,18 +89,16 @@ function renderAnnual(){
  $('#annualTargetYear').textContent=year;
  const input=$('#annualTarget');
  if(document.activeElement!==input){input.value=annualHours(year);input.dataset.year=String(year);}
- $('#annualStorageHint').textContent=user?'Dein Jahresziel wird in deinem Konto gespeichert.':'Dein Jahresziel wird auf diesem Gerät gespeichert.';
+ $('#annualStorageHint').textContent='Dein Jahresziel wird in deinem Konto gespeichert.';
 }
 async function saveAnnualTarget(event){
- event.preventDefault();const input=$('#annualTarget'),button=$('#saveAnnualTarget'),year=Number(input.dataset.year),raw=input.value.trim(),hours=Number(raw.replace(',','.'));
+ event.preventDefault();if(!supa||!user||!authReady||needsPasswordSetup){toast('Bitte zuerst anmelden.');return;}const input=$('#annualTarget'),button=$('#saveAnnualTarget'),year=Number(input.dataset.year),raw=input.value.trim(),hours=Number(raw.replace(',','.'));
  if(!raw||!Number.isFinite(hours)||hours<0||hours>10000||!Number.isInteger(year)){toast('Bitte ein Jahresziel zwischen 0 und 10000 Stunden eingeben.');return;}
  const normalized=Math.round(hours*100)/100;button.disabled=true;
  try{
-  if(user&&supa){
-   const {data:current,error:readError}=await supa.auth.getUser();if(readError)throw readError;
+  const owner=user.id,{data:current,error:readError}=await supa.auth.getUser();if(readError)throw readError;if(user?.id!==owner||current.user?.id!==owner)throw new Error('Bitte melde dich erneut an.');
    const {data,error}=await supa.auth.updateUser({data:{annual_targets:{...(current.user.user_metadata?.annual_targets||{}),[year]:normalized}}});
    if(error)throw error;user=data.user;
-  }else{const targets=localAnnualTargets();targets[year]=normalized;localStorage.setItem('schichtplan.annualTargets',JSON.stringify(targets));}
   input.blur();renderAnnual();toast(`Jahresziel für ${year} gespeichert.`);
  }catch(error){toast('Jahresziel nicht gespeichert: '+error.message)}finally{button.disabled=false;}
 }
@@ -105,9 +151,19 @@ function renderDayPanel(){
 function resetEntryForm(startDate=dateISO(today)){dayPanelMode='form';editingId=null;form.reset();form.elements.date.value=startDate;form.elements.endDate.value=startDate;$('#formTitle').textContent='Eintrag erfassen';$('#saveEntry').innerHTML='Eintrag speichern <span>↗</span>';$('#cancelEdit').hidden=true;form.elements.kind.disabled=false;updateFields();}
 function editEntry(id){const e=entries.find(x=>x.id===id);if(!e)return;dayPanelMode='form';editingId=id;form.elements.kind.value=e.kind;form.elements.number.value=e.shift_number||'';form.elements.officeTitle.value=e.title||'';form.elements.date.value=e.start_date;form.elements.endDate.value=e.end_date;form.elements.start.value=e.start_time||'';form.elements.end.value=e.end_time||'';form.elements.breakMinutes.value=String(e.break_minutes||0);form.elements.actualStart.value=e.actual_start||'';form.elements.actualEnd.value=e.actual_end||'';updateFields();$('#formTitle').textContent='Eintrag bearbeiten';$('#saveEntry').innerHTML='Änderungen speichern <span>↗</span>';$('#cancelEdit').hidden=false;form.elements.kind.disabled=true;renderDayPanel();document.querySelector('.form-panel').scrollIntoView({behavior:'smooth',block:'start'});}
 function updateFields(){const kind=$('#kind').value;$('#dayCreditHint').hidden=!PAID_DAY_KINDS.includes(kind);$('#dayCreditHint').textContent=`${TYPES[kind]}: ${kind==='dispo'?'Pro eingetragenem Kalendertag':'Montag bis Freitag pro Tag'} werden 7 h 48 min angerechnet.`;const timed=kind==='shift'||kind==='office',multi=['vacation','sick','rest'].includes(kind);$('#numberWrap').hidden=kind!=='shift';$('#officeTitleWrap').hidden=kind!=='office';$('#timedFields').hidden=!timed;$('#breakWrap').hidden=kind==='shift'?false:kind!=='office';$('#deviationWrap').hidden=kind!=='shift';$('#endDateWrap').hidden=!multi;form.elements.number.required=kind==='shift';form.elements.start.required=timed;form.elements.end.required=timed;form.elements.endDate.required=multi;if(multi&&(!form.elements.endDate.value||form.elements.endDate.value<form.elements.date.value))form.elements.endDate.value=form.elements.date.value;}
-async function loadEntries(){if(supa&&user){const {data,error}=await supa.from('entries').select('*').order('start_date');if(error){toast('Supabase: '+error.message);entries=readLocal();}else entries=data||[];}else entries=readLocal();render();showMode();}
-async function saveEntry(e){if(supa&&user){const {error}=await supa.from('entries').upsert(e);if(error)throw error;}else{const idx=entries.findIndex(x=>x.id===e.id);if(idx<0)entries.push(e);else entries[idx]=e;writeLocal();}await loadEntries();}
-async function removeEntry(id){if(supa&&user){const {error}=await supa.from('entries').delete().eq('id',id);if(error){toast(error.message);return;}}else{entries=entries.filter(e=>e.id!==id);writeLocal();}await loadEntries();toast('Eintrag gelöscht')}
+async function loadEntries(){
+ const owner=user?.id;
+ if(!supa||!owner||!authReady||needsPasswordSetup){entries=[];render();showMode();return;}
+ const {data,error}=await supa.from('entries').select('*').order('start_date');
+ if(user?.id!==owner||!authReady||needsPasswordSetup)return;
+ if(error){entries=[];toast('Einträge konnten nicht geladen werden: '+error.message)}else entries=data||[];
+ render();showMode();
+}
+function requireAccount(){if(!supa||!user||!authReady||needsPasswordSetup)throw new Error('Bitte zuerst anmelden.');}
+async function saveEntry(entry){requireAccount();const {error}=await supa.from('entries').upsert(entry);if(error)throw error;await loadEntries();}
+async function removeEntry(id){
+ try{requireAccount();const {error}=await supa.from('entries').delete().eq('id',id);if(error)throw error;await loadEntries();toast('Eintrag gelöscht');}catch(error){toast(error.message)}
+}
 function localIcs(){
  const esc=v=>String(v||'').replace(/\\/g,'\\\\').replace(/\n/g,'\\n').replace(/,/g,'\\,').replace(/;/g,'\\;'),fmt=d=>d.replaceAll('-','');
  const ev=[];
@@ -136,6 +192,60 @@ form.onsubmit=async ev=>{ev.preventDefault();const wasEditing=!!editingId,d=new 
 $('#annualTargetForm').onsubmit=saveAnnualTarget;
 $('#cancelEdit').onclick=()=>{if(selectedDate)openDay(selectedDate);else{resetEntryForm();renderDayPanel();}};
 $('#downloadIcs').onclick=downloadIcs;$('#copyFeed').onclick=()=>feedToken(false).catch(e=>toast(e.message));$('#rotateFeed').onclick=()=>feedToken(true).catch(e=>toast(e.message));
-const dialog=$('#authDialog');$('#authButton').onclick=async()=>{if(user){await supa.auth.signOut();return}if(!supa)return;$('#authError').hidden=true;dialog.showModal()};$('#closeAuth').onclick=()=>dialog.close();$('#toggleAuth').onclick=()=>{authMode=authMode==='login'?'signup':'login';$('#authTitle').textContent=authMode==='login'?'Anmelden':'Konto erstellen';$('#authSubmit').textContent=authMode==='login'?'Anmelden':'Konto erstellen';$('#toggleAuth').textContent=authMode==='login'?'Konto erstellen':'Schon ein Konto? Anmelden'};
-$('#authForm').onsubmit=async ev=>{ev.preventDefault();const f=new FormData(ev.currentTarget),email=f.get('email'),password=f.get('password');const res=authMode==='login'?await supa.auth.signInWithPassword({email,password}):await supa.auth.signUp({email,password,options:{emailRedirectTo:location.href.split('#')[0]}});if(res.error){$('#authError').textContent=authErrorText(res.error);$('#authError').hidden=false;return}if(authMode==='signup'&&!res.data.session){$('#authError').textContent='Bitte bestätige zuerst den Link in deiner E-Mail.';$('#authError').hidden=false;return}dialog.close()};
-if(supa){supa.auth.getSession().then(({data})=>{user=data.session?.user||null;loadEntries()});supa.auth.onAuthStateChange((_event,session)=>{user=session?.user||null;loadEntries()});}else{loadEntries();}
+const dialog=$('#authDialog');
+function setAuthMode(mode){
+ authMode=mode;const signup=mode==='signup',reset=mode==='reset';
+ $('#authTitle').textContent=reset?'Passwort zurücksetzen':signup?'Konto erstellen':'Anmelden';
+ $('#authSubmit').textContent=reset?'Link anfordern':signup?'Konto erstellen':'Anmelden';
+ $('#toggleAuth').textContent=signup?'Schon ein Konto? Anmelden':'Konto erstellen';
+ $('#toggleAuth').hidden=reset;$('#forgotPassword').textContent=reset?'Zurück zur Anmeldung':'Passwort vergessen?';
+ $('#authPasswordWrap').hidden=reset;$('#authForm').elements.password.required=!reset;
+ $('#authForm').elements.password.autocomplete=signup?'new-password':'current-password';
+ $('#authHint').textContent=reset?'Du erhältst einen Link, über den du ein neues Passwort festlegen kannst.':signup?'Erstelle ein Konto und bestätige anschließend deine E-Mail. Bereits eingeladen? Öffne stattdessen den Link aus der Einladung.':'Melde dich mit deinem persönlichen Konto an. Eingeladen? Öffne zuerst den Einladungslink, um dein Passwort festzulegen.';
+ $('#authError').hidden=true;
+}
+function openLogin(){if(!supa)return;setAuthMode('login');$('#authForm').reset();dialog.showModal();}
+$('#gateLogin').onclick=openLogin;
+$('#authButton').onclick=async()=>{
+ if(user){
+  const oldUser=user.id;authGeneration++;initialSetup='';user=null;entries=[];editingId=null;needsPasswordSetup=false;authNotice='';authReady=true;markSetup(oldUser,false);resetEntryForm();render();showMode();
+  const {error}=await supa.auth.signOut();if(error){authNotice='Abmeldung nicht abgeschlossen. Bitte versuche es erneut.';showMode();}return;
+ }
+ openLogin();
+};
+$('#closeAuth').onclick=()=>dialog.close();
+$('#toggleAuth').onclick=()=>setAuthMode(authMode==='login'?'signup':'login');
+$('#forgotPassword').onclick=()=>setAuthMode(authMode==='reset'?'login':'reset');
+$('#authForm').onsubmit=async event=>{
+ event.preventDefault();const fields=new FormData(event.currentTarget),email=String(fields.get('email')||'').trim(),password=String(fields.get('password')||''),mode=authMode,button=$('#authSubmit');button.disabled=true;$('#authError').hidden=true;
+ try{
+  if(mode==='reset'){
+   const {error}=await supa.auth.resetPasswordForEmail(email,{redirectTo:AUTH_REDIRECT_URL});if(error)throw error;
+   $('#authError').textContent='Wenn für diese E-Mail ein Konto besteht, erhältst du einen Link zum Festlegen eines neuen Passworts.';$('#authError').hidden=false;return;
+  }
+  const result=mode==='login'?await supa.auth.signInWithPassword({email,password}):await supa.auth.signUp({email,password,options:{emailRedirectTo:AUTH_REDIRECT_URL}});
+  if(result.error)throw result.error;
+  if(!result.data.session){$('#authError').textContent='Prüfe dein E-Mail-Postfach und öffne den Bestätigungslink. Falls du bereits eingeladen wurdest, verwende den Einladungslink und lege dort dein Passwort fest – registriere dich nicht erneut.';$('#authError').hidden=false;return;}
+  await resolveAuthSession(result.data.session);if(user)dialog.close();
+ }catch(error){$('#authError').textContent=error?.code==='email_not_confirmed'?'Bitte öffne zuerst den Bestätigungs- oder Einladungslink aus deiner E-Mail. Eine Einladung wird über ihren Link abgeschlossen, nicht über „Konto erstellen“.':authErrorText(error);$('#authError').hidden=false;}
+ finally{button.disabled=false;}
+};
+$('#passwordSetupForm').onsubmit=async event=>{
+ event.preventDefault();const setupForm=event.currentTarget,fields=new FormData(setupForm),password=String(fields.get('password')||''),confirmation=String(fields.get('confirmation')||''),button=$('#savePassword');$('#setupError').hidden=true;
+ if(password.length<8||password!==confirmation){$('#setupError').textContent=password.length<8?'Bitte mindestens 8 Zeichen verwenden.':'Die beiden Passwörter stimmen nicht überein.';$('#setupError').hidden=false;return;}
+ if(!supa||!user||!needsPasswordSetup){failAuth('Bitte öffne deinen Einladungslink erneut.');return;}
+ button.disabled=true;
+ try{
+  const {data,error}=await supa.auth.updateUser({password});if(error)throw error;
+  if(!data.user||data.user.id!==user?.id)throw new Error('Bitte melde dich erneut an.');
+  markSetup(data.user.id,false);initialSetup='';needsPasswordSetup=false;user=data.user;authReady=true;authNotice='';setupForm.reset();await loadEntries();toast('Dein Passwort ist gespeichert. Willkommen!');
+ }catch(error){$('#setupError').textContent=authErrorText(error);$('#setupError').hidden=false;}finally{button.disabled=false;}
+};
+showMode();
+if(supa)supa.auth.onAuthStateChange((event,session)=>{
+ if(event==='PASSWORD_RECOVERY')initialSetup='recovery';
+ if(authBooting)return;
+ if(event==='SIGNED_OUT'){authGeneration++;initialSetup='';user=null;entries=[];editingId=null;needsPasswordSetup=false;authReady=true;render();showMode();return;}
+ const eventGeneration=authGeneration;setTimeout(()=>{if(eventGeneration!==authGeneration)return;resolveAuthSession(session).catch(()=>failAuth('Die Anmeldung konnte nicht geprüft werden. Bitte melde dich erneut an.'));},0);
+});
+initializeAuth();
