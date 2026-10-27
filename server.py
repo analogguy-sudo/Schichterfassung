@@ -19,7 +19,7 @@ def make_calendar():
     for s in read_shifts():
         date=s.get('date',''); start=s.get('actualStart') or s.get('start','00:00'); end=s.get('actualEnd') or s.get('end','00:00'); end_date=date
         if end<=start: end_date=(datetime.strptime(date,'%Y-%m-%d')+timedelta(days=1)).strftime('%Y-%m-%d')
-        desc=f"Pause: {s.get('breakMinutes',0)} min\nFrankfurt (7 min): {'Ja' if s.get('frankfurt') else 'Nein'}"
+        desc=f"Pause: {s.get('breakMinutes',0)} min"
         if s.get('actualStart') or s.get('actualEnd'): desc+=f"\nAbweichung: {s.get('actualStart') or start}–{s.get('actualEnd') or end}"
         events += ['BEGIN:VEVENT',f"UID:shift-{s.get('id','')}@schichtplan.local",f'DTSTAMP:{stamp}',f"DTSTART:{date.replace('-','')}T{start.replace(':','')}00",f"DTEND:{end_date.replace('-','')}T{end.replace(':','')}00",f"SUMMARY:{escape_ics('Schicht '+str(s.get('number','')))}",f'DESCRIPTION:{escape_ics(desc)}','END:VEVENT']
     return '\r\n'.join(['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Persoenlicher Schichtplan//DE','CALSCALE:GREGORIAN',*events,'END:VCALENDAR','']).encode()

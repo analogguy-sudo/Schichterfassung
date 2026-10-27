@@ -96,7 +96,6 @@ Deno.serve(async (request) => {
         lines.push(`DTEND:${utcStamp(endDate, endTime)}`);
         const description = [
           `Pause: ${entry.break_minutes || 0} min`,
-          ...(entry.kind === 'shift' ? [`Frankfurt (7 min): ${entry.frankfurt ? 'Ja' : 'Nein'}`] : []),
           ...(entry.actual_start || entry.actual_end ? ['Abweichung vom Dienstauftrag'] : []),
         ].join('\n');
         lines.push(`DESCRIPTION:${escapeIcs(description)}`);

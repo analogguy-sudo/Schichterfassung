@@ -14,7 +14,7 @@ Nach dem Verbinden werden neue Einträge in Supabase gespeichert. Ohne Supabase 
 
 ## Einträge
 
-- **Schicht:** Schichtnummer, Dienstzeiten, Pause (keine/30/45 Min.), Frankfurt (7 Min.) und abweichende tatsächliche Zeiten.
+- **Schicht:** Schichtnummer, Dienstzeiten, Pause (keine/30/45 Min.) und abweichende tatsächliche Zeiten.
 - **Büro:** Beginn, Ende und Pause.
 - **Ruhe, Urlaub, Krank:** Ganztägige Einträge; Urlaub und Krank können über mehrere Tage gehen.
 

@@ -10,13 +10,12 @@ create table if not exists public.entries (
   start_time time,
   end_time time,
   break_minutes integer not null default 0 check (break_minutes in (0,30,45)),
-  frankfurt boolean not null default false,
   actual_start time,
   actual_end time,
   created_at timestamptz not null default now(),
   check (end_date >= start_date),
   check ((kind in ('shift','office') and start_time is not null and end_time is not null) or (kind in ('rest','vacation','sick') and start_time is null and end_time is null)),
-  check (kind = 'shift' or (not frankfurt and actual_start is null and actual_end is null))
+  check (kind = 'shift' or (actual_start is null and actual_end is null))
 );
 alter table public.entries enable row level security;
 revoke all on public.entries from anon;
