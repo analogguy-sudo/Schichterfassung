@@ -77,6 +77,7 @@ Deno.serve(async (request) => {
       const endTime = entry.actual_end || entry.end_time;
       const summary = entry.kind === 'shift'
         ? `Schicht ${entry.shift_number || ''}`.trim()
+        : entry.kind === 'office' ? entry.title?.trim() || 'Büro'
         : entryTypes[entry.kind] || 'Eintrag';
       const lines = [
         'BEGIN:VEVENT',

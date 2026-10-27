@@ -4,6 +4,7 @@ create table if not exists public.entries (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   kind text not null check (kind in ('shift','office','rest','vacation','sick')),
+  title text not null default '',
   shift_number text not null default '',
   start_date date not null,
   end_date date not null,
@@ -17,6 +18,7 @@ create table if not exists public.entries (
   check ((kind in ('shift','office') and start_time is not null and end_time is not null) or (kind in ('rest','vacation','sick') and start_time is null and end_time is null)),
   check (kind = 'shift' or (actual_start is null and actual_end is null))
 );
+alter table public.entries add column if not exists title text not null default '';
 alter table public.entries enable row level security;
 revoke all on public.entries from anon;
 grant select, insert, update, delete on public.entries to authenticated;

@@ -15,7 +15,7 @@ Nach dem Verbinden werden neue Einträge in Supabase gespeichert. Ohne Supabase 
 ## Einträge
 
 - **Schicht:** Schichtnummer, Dienstzeiten, Pause (keine/30/45 Min.) und abweichende tatsächliche Zeiten.
-- **Büro:** Beginn, Ende und Pause.
+- **Büro:** Beginn, Ende und Pause; optional mit eigener Bezeichnung für den Kalender.
 - **Ruhe, Urlaub, Krank:** Ganztägige Einträge; Urlaub und Krank können über mehrere Tage gehen.
 
 Die Supabase-Tabelle ist mit Row Level Security auf den angemeldeten Nutzer begrenzt. Die Kalender-Feed-Adresse enthält ein geheimes Token. Jeder, der diese Adresse kennt, kann den Kalender abonnieren; mit „Feed-Link erneuern“ wird der vorherige Link ungültig.
