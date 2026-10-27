@@ -8,9 +8,17 @@ Private Web-App für Schicht, Büro, Ruhe, Urlaub, Krank und Dispo-Tage. Die Obe
 2. Im SQL Editor den Inhalt von `supabase/schema.sql` ausführen.
 3. Unter Project Settings → API die Project URL und den Publishable Key in `config.js` einsetzen. Der Publishable Key darf im Frontend stehen; niemals den `service_role`-Key eintragen.
 4. `supabase/functions/calendar-feed/index.ts` als Edge Function `calendar-feed` deployen und `supabase/config.toml` mit deployen. `verify_jwt` ist ausgeschaltet, weil Kalender-Apps keinen Supabase-Login mitsenden; die Funktion prüft stattdessen einen langen, widerrufbaren Feed-Token.
-5. In Supabase Authentication E-Mail/Passwort aktiv lassen. Über die App Konto erstellen und anmelden.
+5. In Supabase Authentication E-Mail/Passwort und die E-Mail-Bestätigung aktiv lassen. Site URL auf `https://analogguy-sudo.github.io/Schichterfassung/` setzen und `https://analogguy-sudo.github.io/Schichterfassung/**` als Redirect URL erlauben.
 
-Nach dem Verbinden werden neue Einträge in Supabase gespeichert. Ohne Supabase bleibt die App auf diesem Gerät nutzbar; dort gibt es `.ics`-Export, aber kein abonnierbares Feed.
+Die Kalender- und Stundenansicht ist erst nach einer vom Server geprüften Anmeldung sichtbar. Ohne Anmeldung erscheint nur die Startseite zum Anmelden. Frühere lokale Einträge werden nicht als Ersatz für Kontodaten geladen.
+
+## Einladungen und Anmeldung
+
+- Eingeladene Nutzer öffnen den Einladungslink aus ihrer E-Mail. Die App erkennt `type=invite`, prüft die Sitzung und zeigt „Passwort festlegen“. Eine erneute Registrierung ist nicht erforderlich.
+- Die Passwort-Einrichtung bleibt bei einem Neuladen im selben Tab erhalten. Ein ungültiger oder abgelaufener Link öffnet keine Kalenderdaten.
+- Für bestehende Konten gibt es „Passwort vergessen?“. Ein Wiederherstellungslink öffnet ebenfalls die Passwortseite.
+- Neue selbst registrierte Nutzer bestätigen ihre E-Mail über den Bestätigungslink. Die E-Mail-Bestätigung bleibt aktiv.
+- Die Oberfläche verwendet den Publishable Key. Die Datenbank muss weiterhin Row Level Security mit Nutzerbindung erzwingen; das Ausblenden der Oberfläche ersetzt diese Regeln nicht.
 
 ## Einträge
 
