@@ -1,15 +1,21 @@
 # Schichterfassung
 
-Persönliche Web-App zur Erfassung von Schichten, Pausen und Abweichungen mit Monatsübersicht und iCalendar-Feed.
+Private Web-App für Schicht, Büro, Ruhe, Urlaub und Krank. Die Oberfläche wird als GitHub Pages Seite ausgeliefert; Supabase speichert angemeldete Einträge mit Row Level Security und stellt den iCalendar-Feed über eine Edge Function bereit.
 
-## Lokal starten
+## Supabase einmalig einrichten
 
-Python 3 wird benötigt; zusätzliche Pakete sind nicht nötig. Auf macOS `start.command` doppelklicken oder im Terminal `python3 server.py` ausführen. Danach `http://localhost:3000` öffnen.
+1. Ein eigenes Supabase-Projekt **Schichterfassung** anlegen (nicht das Projekt einer anderen App verwenden).
+2. Im SQL Editor den Inhalt von `supabase/schema.sql` ausführen.
+3. Unter Project Settings → API die Project URL und den Publishable Key in `config.js` einsetzen. Der Publishable Key darf im Frontend stehen; niemals den `service_role`-Key eintragen.
+4. `supabase/functions/calendar-feed/index.ts` als Edge Function `calendar-feed` deployen und `supabase/config.toml` mit deployen. `verify_jwt` ist ausgeschaltet, weil Kalender-Apps keinen Supabase-Login mitsenden; die Funktion prüft stattdessen einen langen, widerrufbaren Feed-Token.
+5. In Supabase Authentication E-Mail/Passwort aktiv lassen. Über die App Konto erstellen und anmelden.
 
-Schichten werden in `shifts.json` neben dem Server gespeichert. Diese Datei ist in `.gitignore` eingetragen und wird nicht ins Repository übertragen.
+Nach dem Verbinden werden neue Einträge in Supabase gespeichert. Ohne Supabase bleibt die App auf diesem Gerät nutzbar; dort gibt es `.ics`-Export, aber kein abonnierbares Feed.
 
-## Kalender verbinden
+## Einträge
 
-In der App **Feed-Adresse kopieren** auswählen und diese Adresse in der Kalender-App als Kalenderabonnement hinzufügen. Der Server muss unter einer von deinem Kalender erreichbaren Adresse laufen. `localhost` ist nur auf dem eigenen Gerät erreichbar; für ein Abo von unterwegs braucht es später einen HTTPS-Server. **Kalenderdatei laden** exportiert eine `.ics`-Momentaufnahme.
+- **Schicht:** Schichtnummer, Dienstzeiten, Pause (keine/30/45 Min.), Frankfurt (7 Min.) und abweichende tatsächliche Zeiten.
+- **Büro:** Beginn, Ende und Pause.
+- **Ruhe, Urlaub, Krank:** Ganztägige Einträge; Urlaub und Krank können über mehrere Tage gehen.
 
-GitHub speichert den Quellcode, führt den Python-Server aber nicht aus. GitHub Pages allein kann den dynamischen Kalender-Feed nicht bereitstellen.
+Die Supabase-Tabelle ist mit Row Level Security auf den angemeldeten Nutzer begrenzt. Die Kalender-Feed-Adresse enthält ein geheimes Token. Jeder, der diese Adresse kennt, kann den Kalender abonnieren; mit „Feed-Link erneuern“ wird der vorherige Link ungültig.
