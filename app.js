@@ -1,6 +1,7 @@
 const authUrl=new URL(window.location.href), authHash=new URLSearchParams(authUrl.hash.slice(1));
 const authLink={type:authHash.get('type')||authUrl.searchParams.get('type')||'',tokenHash:authUrl.searchParams.get('token_hash'),error:authHash.get('error')||authUrl.searchParams.get('error'),hasTokens:!!authHash.get('access_token')};
 let authReady=false,needsPasswordSetup=false,authBooting=true,authGeneration=0,authNotice='',initialSetup=['invite','recovery'].includes(authLink.type)&&(authLink.hasTokens||!!authLink.tokenHash)?authLink.type:'';
+let awaitingLinkConfirmation=!!authLink.tokenHash;
 const AUTH_REDIRECT_URL='https://analogguy-sudo.github.io/Schichterfassung/';
 const $=s=>document.querySelector(s), form=$('#entryForm'), TYPES={shift:'Schicht',office:'Büro',rest:'Ruhe',vacation:'Urlaub',sick:'Krank',dispo:'Dispo-Tag'};
 function authErrorText(error){const message=String(error?.message||'').toLowerCase();if(error?.code==='over_email_send_rate_limit'||message.includes('email rate limit exceeded'))return 'Der Supabase-Mailversand hat sein Limit erreicht (2 E-Mails pro Stunde für das ganze Projekt). Bitte warte bis zu einer Stunde und versuche es dann erneut. Mit eigenem SMTP-Mailversand lässt sich dieses enge Standardlimit vermeiden.';if(error?.code==='email_address_not_authorized'||message.includes('email address not authorized'))return 'Der Supabase-Standardversand darf nur an Projektmitglieder senden. Für andere E-Mail-Adressen muss in Supabase ein eigener SMTP-Mailversand eingerichtet werden.';return error?.message||'Anmeldung fehlgeschlagen. Bitte versuche es erneut.'}
@@ -11,7 +12,7 @@ const config=window.SCHICHTPLAN_CONFIG||{};
 if(window.supabase?.createClient&&config.url&&config.publishableKey&&!config.url.includes('DEIN_')&&!config.publishableKey.includes('DEIN_')){supa=window.supabase.createClient(config.url,config.publishableKey,{auth:{detectSessionInUrl:true,flowType:'implicit',persistSession:true,autoRefreshToken:true}});}
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600)}
 function showMode(){
- const ready=!!(supa&&user&&authReady&&!needsPasswordSetup);
+ const ready=!!(supa&&user&&authReady&&!needsPasswordSetup&&!awaitingLinkConfirmation);
  $('#appContent').hidden=!ready;$('#authGate').hidden=ready;
  $('#storageStatus').textContent=ready?'Sicher in Supabase gespeichert':user&&needsPasswordSetup?'Konto einrichten':authReady?'Bitte anmelden':'Anmeldung wird geprüft…';
  $('.status-dot').classList.toggle('online',ready);
@@ -19,9 +20,10 @@ function showMode(){
  $('#copyFeed').hidden=!ready;$('#rotateFeed').hidden=!ready;
  $('#feedHint').textContent='Dein Feed-Link ist geheim. Wer den Link kennt, kann deinen Kalender lesen.';
  $('#passwordSetupForm').hidden=!(user&&needsPasswordSetup);
+ $('#gateLogin').textContent=awaitingLinkConfirmation?'Passwort festlegen':'Anmelden';
  $('#gateLogin').hidden=!!(user&&needsPasswordSetup);$('#gateLogin').disabled=!supa||!authReady;
  $('#gateTitle').textContent=user&&needsPasswordSetup?'Dein Konto einrichten':'Deine Schichten. Dein Konto.';
- $('#gateMessage').textContent=authNotice||(user&&needsPasswordSetup?'Deine E-Mail ist bestätigt. Lege jetzt dein persönliches Passwort fest.':!supa?'Die Anmeldung ist gerade nicht verfügbar. Bitte lade die Seite erneut.':!authReady?'Deine Anmeldung wird geprüft…':'Melde dich an, um deinen persönlichen Kalender und dein Stundenkonto zu öffnen.');
+ $('#gateMessage').textContent=awaitingLinkConfirmation?'Klicke auf „Passwort festlegen“, um deinen E-Mail-Link zu bestätigen und dein Passwort einzurichten.':authNotice||(user&&needsPasswordSetup?'Deine E-Mail ist bestätigt. Lege jetzt dein persönliches Passwort fest.':!supa?'Die Anmeldung ist gerade nicht verfügbar. Bitte lade die Seite erneut.':!authReady?'Deine Anmeldung wird geprüft…':'Melde dich an, um deinen persönlichen Kalender und dein Stundenkonto zu öffnen.');
 }
 function pendingSetup(userId){try{return sessionStorage.getItem(`schichtplan.setup.${userId}`)==='pending'}catch{return false}}
 function markSetup(userId,pending){try{if(pending)sessionStorage.setItem(`schichtplan.setup.${userId}`,'pending');else sessionStorage.removeItem(`schichtplan.setup.${userId}`)}catch{}}
@@ -45,7 +47,9 @@ async function resolveAuthSession(session){
  authReady=true;authNotice='';
  if(needsPasswordSetup){entries=[];render();showMode();}else await loadEntries();
 }
-async function initializeAuth(){
+async function initializeAuth(confirmLink=false){
+ if(awaitingLinkConfirmation&&!confirmLink){authReady=true;showMode();return;}
+ awaitingLinkConfirmation=false;
  if(!supa){authBooting=false;failAuth('Die Anmeldung ist gerade nicht verfügbar. Bitte lade die Seite erneut.');return;}
  try{
   if(authLink.error)throw new Error('invalid_auth_link');
@@ -205,7 +209,7 @@ function setAuthMode(mode){
  $('#authError').hidden=true;
 }
 function openLogin(){if(!supa)return;setAuthMode('login');$('#authForm').reset();dialog.showModal();}
-$('#gateLogin').onclick=openLogin;
+$('#gateLogin').onclick=()=>awaitingLinkConfirmation?initializeAuth(true):openLogin();
 $('#authButton').onclick=async()=>{
  if(user){
   const oldUser=user.id;authGeneration++;initialSetup='';user=null;entries=[];editingId=null;needsPasswordSetup=false;authNotice='';authReady=true;markSetup(oldUser,false);resetEntryForm();render();showMode();
