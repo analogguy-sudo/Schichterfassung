@@ -4,7 +4,7 @@ let authReady=false,needsPasswordSetup=false,authBooting=true,authGeneration=0,a
 let awaitingLinkConfirmation=!!authLink.tokenHash;
 const AUTH_REDIRECT_URL='https://analogguy-sudo.github.io/Schichterfassung/';
 const $=s=>document.querySelector(s), form=$('#entryForm'), TYPES={shift:'Schicht',office:'Büro',rest:'Ruhe',vacation:'Urlaub',sick:'Krank',dispo:'Dispo-Tag'};
-function authErrorText(error){const message=String(error?.message||'').toLowerCase();if(error?.code==='over_email_send_rate_limit'||message.includes('email rate limit exceeded'))return 'Der Supabase-Mailversand hat sein Limit erreicht (2 E-Mails pro Stunde für das ganze Projekt). Bitte warte bis zu einer Stunde und versuche es dann erneut. Mit eigenem SMTP-Mailversand lässt sich dieses enge Standardlimit vermeiden.';if(error?.code==='email_address_not_authorized'||message.includes('email address not authorized'))return 'Der Supabase-Standardversand darf nur an Projektmitglieder senden. Für andere E-Mail-Adressen muss in Supabase ein eigener SMTP-Mailversand eingerichtet werden.';return error?.message||'Anmeldung fehlgeschlagen. Bitte versuche es erneut.'}
+function authErrorText(error){const message=String(error?.message||'').toLowerCase();if(error?.code==='over_email_send_rate_limit'||message.includes('email rate limit exceeded'))return 'Es wurden gerade zu viele E-Mails angefordert. Bitte warte etwas und versuche es später erneut.';if(error?.code==='email_address_not_authorized'||message.includes('email address not authorized'))return 'An diese Adresse kann gerade keine E-Mail gesendet werden. Bitte wende dich an die Person, die dich zur App eingeladen hat.';return error?.message||'Anmeldung fehlgeschlagen. Bitte versuche es erneut.'}
 const today=new Date(), dateISO=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 const monthFmt=new Intl.DateTimeFormat('de-DE',{month:'long',year:'numeric'}), dayFmt=new Intl.DateTimeFormat('de-DE',{weekday:'short',day:'2-digit',month:'2-digit'}), longDayFmt=new Intl.DateTimeFormat('de-DE',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 let cursor=new Date(today.getFullYear(),today.getMonth(),1), entries=[], user=null, supa=null, authMode='login', editingId=null, selectedDate=null, dayPanelMode='form';
@@ -15,7 +15,7 @@ function showMode(){
  window.schichtFriends?.setSession(supa,authReady&&!needsPasswordSetup?user:null,entries);
  const ready=!!(supa&&user&&authReady&&!needsPasswordSetup&&!awaitingLinkConfirmation);
  $('#appContent').hidden=!ready;$('#authGate').hidden=ready;
- $('#storageStatus').textContent=ready?'Sicher in Supabase gespeichert':user&&needsPasswordSetup?'Konto einrichten':authReady?'Bitte anmelden':'Anmeldung wird geprüft…';
+ $('#storageStatus').textContent=ready?'Angemeldet':user&&needsPasswordSetup?'Konto einrichten':authReady?'Bitte anmelden':'Anmeldung wird geprüft…';
  $('.status-dot').classList.toggle('online',ready);
  $('#authButton').textContent=user?'Abmelden':'Anmelden';$('#authButton').disabled=!supa||!authReady;
  $('#copyFeed').hidden=!ready;$('#rotateFeed').hidden=!ready;
