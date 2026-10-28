@@ -15,6 +15,10 @@ function showMode(){
  window.schichtFriends?.setSession(supa,authReady&&!needsPasswordSetup?user:null,entries);
  const ready=!!(supa&&user&&authReady&&!needsPasswordSetup&&!awaitingLinkConfirmation);
  $('#appContent').hidden=!ready;$('#authGate').hidden=ready;
+ if($('#appMenu')){
+  $('#openFriends').hidden=!ready;$('#openCalendar').hidden=!ready;
+  if(!ready){$('#friendsDialog').close();$('#calendarDialog').close();$('#appMenu').open=false;}
+ }
  $('#storageStatus').textContent=ready?'Angemeldet':user&&needsPasswordSetup?'Konto einrichten':authReady?'Bitte anmelden':'Anmeldung wird geprüft…';
  $('.status-dot').classList.toggle('online',ready);
  $('#authButton').textContent=user?'Abmelden':'Anmelden';$('#authButton').disabled=!supa||!authReady;
@@ -254,3 +258,20 @@ if(supa)supa.auth.onAuthStateChange((event,session)=>{
  const eventGeneration=authGeneration;setTimeout(()=>{if(eventGeneration!==authGeneration)return;resolveAuthSession(session).catch(()=>failAuth('Die Anmeldung konnte nicht geprüft werden. Bitte melde dich erneut an.'));},0);
 });
 initializeAuth();
+
+const appMenu=$('#appMenu');
+if(appMenu){
+function closeAppMenu(){appMenu.open=false;}
+function openFeature(selector){try{requireAccount();closeAppMenu();$(selector).showModal();}catch(error){toast(error.message);}}
+$('#openFriends').onclick=()=>openFeature('#friendsDialog');
+$('#openCalendar').onclick=()=>openFeature('#calendarDialog');
+$('#closeFriends').onclick=()=>$('#friendsDialog').close();
+$('#closeCalendar').onclick=()=>$('#calendarDialog').close();
+for(const id of ['friendsDialog','calendarDialog']){
+ const panel=$('#'+id);panel.addEventListener?.('close',()=>appMenu.querySelector('summary').focus());
+}
+$('#authButton').addEventListener?.('click',closeAppMenu);
+$('#themeToggle').addEventListener?.('click',closeAppMenu);
+document.addEventListener?.('click',event=>{if(appMenu.open&&!appMenu.contains(event.target))closeAppMenu();});
+document.addEventListener?.('keydown',event=>{if(event.key==='Escape'&&appMenu.open){closeAppMenu();appMenu.querySelector('summary').focus();}});
+}
