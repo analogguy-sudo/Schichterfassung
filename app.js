@@ -12,6 +12,7 @@ const config=window.SCHICHTPLAN_CONFIG||{};
 if(window.supabase?.createClient&&config.url&&config.publishableKey&&!config.url.includes('DEIN_')&&!config.publishableKey.includes('DEIN_')){supa=window.supabase.createClient(config.url,config.publishableKey,{auth:{detectSessionInUrl:true,flowType:'implicit',persistSession:true,autoRefreshToken:true}});}
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600)}
 function showMode(){
+ window.schichtFriends?.setSession(supa,authReady&&!needsPasswordSetup?user:null,entries);
  const ready=!!(supa&&user&&authReady&&!needsPasswordSetup&&!awaitingLinkConfirmation);
  $('#appContent').hidden=!ready;$('#authGate').hidden=ready;
  $('#storageStatus').textContent=ready?'Sicher in Supabase gespeichert':user&&needsPasswordSetup?'Konto einrichten':authReady?'Bitte anmelden':'Anmeldung wird geprüft…';
