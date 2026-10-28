@@ -17,7 +17,8 @@ function showMode(){
  $('#appContent').hidden=!ready;$('#authGate').hidden=ready;
  if($('#appMenu')){
   $('#openFriends').hidden=!ready;$('#openCalendar').hidden=!ready;
-  if(!ready){$('#friendsDialog').close();$('#calendarDialog').close();$('#appMenu').open=false;}
+  if($('#openAnnual'))$('#openAnnual').hidden=!ready;
+  if(!ready){$('#annualDialog')?.close();$('#friendsDialog').close();$('#calendarDialog').close();$('#appMenu').open=false;}
  }
  $('#storageStatus').textContent=ready?'Angemeldet':user&&needsPasswordSetup?'Konto einrichten':authReady?'Bitte anmelden':'Anmeldung wird geprüft…';
  $('.status-dot').classList.toggle('online',ready);
@@ -263,15 +264,16 @@ const appMenu=$('#appMenu');
 if(appMenu){
 function closeAppMenu(){appMenu.open=false;}
 function openFeature(selector){try{requireAccount();closeAppMenu();$(selector).showModal();}catch(error){toast(error.message);}}
+if($('#openAnnual'))$('#openAnnual').onclick=()=>openFeature('#annualDialog');
+if($('#closeAnnual'))$('#closeAnnual').onclick=()=>$('#annualDialog').close();
 $('#openFriends').onclick=()=>openFeature('#friendsDialog');
 $('#openCalendar').onclick=()=>openFeature('#calendarDialog');
 $('#closeFriends').onclick=()=>$('#friendsDialog').close();
 $('#closeCalendar').onclick=()=>$('#calendarDialog').close();
-for(const id of ['friendsDialog','calendarDialog']){
- const panel=$('#'+id);panel.addEventListener?.('close',()=>appMenu.querySelector('summary').focus());
+for(const id of ['annualDialog','friendsDialog','calendarDialog']){
+ const panel=$('#'+id);panel?.addEventListener?.('close',()=>appMenu.querySelector('summary').focus());
 }
 $('#authButton').addEventListener?.('click',closeAppMenu);
-$('#themeToggle').addEventListener?.('click',closeAppMenu);
 document.addEventListener?.('click',event=>{if(appMenu.open&&!appMenu.contains(event.target))closeAppMenu();});
 document.addEventListener?.('keydown',event=>{if(event.key==='Escape'&&appMenu.open){closeAppMenu();appMenu.querySelector('summary').focus();}});
 }
