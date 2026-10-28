@@ -43,7 +43,7 @@ Ein alter oder bereits benutzter Link kann ungültig sein. Fordere dann einen ne
 
 ## 3. Menü und Kalender
 
-Oben rechts öffnest du mit **⋮** das Menü. Dort findest du **Hilfe & Anleitung**, den Wechsel zwischen Hell und Dunkel, **Freunde & Treffen**, **Kalender verbinden** sowie **Abmelden**. Freunde und Kalenderabo öffnen sich in einem eigenen Fenster, das du über **Schließen ×** oder die Escape-Taste wieder schließen kannst. Dein Kalender bleibt im Hintergrund erhalten. Vor der Anmeldung stehen nur Hilfe, Darstellung und Anmelden zur Verfügung.
+Oben rechts öffnest du mit **⋮** das Menü. Dort findest du **Jahresübersicht**, **Freunde & Treffen**, **Kalender verbinden**, **Hilfe & Anleitung** und **Abmelden**. Jahresübersicht, Freunde und Kalenderabo öffnen sich in einem eigenen Fenster, das du über **Schließen ×** oder die Escape-Taste wieder schließen kannst. Dein Kalender bleibt im Hintergrund erhalten. Vor der Anmeldung stehen im Menü nur Hilfe und Anmelden zur Verfügung. Der kleine Schalter für Hell und Dunkel befindet sich außerhalb des Menüs unter dem Anmeldestatus.
 
 ### Im Kalender zurechtfinden
 
@@ -110,7 +110,7 @@ Eine Schicht über Mitternacht wird dem Monat und Jahr ihres Beginns zugeordnet.
 
 ### Dein persönliches Jahresziel
 
-In der **Jahresübersicht** steht zunächst ein Ziel von **2036 Stunden**. Trage unter **Dein Jahresziel** deine eigene Jahresarbeitszeit ein und klicke auf **Jahresziel speichern**. Das Ziel gilt für das dort angezeigte Jahr und wird in deinem Konto gespeichert. Du kannst für ein anderes Jahr einen anderen Wert festlegen.
+Öffne **⋮ → Jahresübersicht**. Dort steht zunächst ein Ziel von **2036 Stunden**. Trage unter **Dein Jahresziel** deine eigene Jahresarbeitszeit ein und klicke auf **Jahresziel speichern**. Das Ziel gilt für das dort angezeigte Jahr und wird in deinem Konto gespeichert. Du kannst für ein anderes Jahr einen anderen Wert festlegen.
 
 **Angerechnete Zeit** ist die Summe deiner erfassten Zeiten und Tagespauschalen im Jahr. **Saldo zum Jahresziel** vergleicht diese Summe mit dem gesamten Jahresziel. Ein Minus zu Jahresbeginn bedeutet also nicht automatisch, dass du zu wenig gearbeitet hast – noch nicht erfasste oder zukünftige Dienste fehlen in dieser Summe.
 
@@ -189,7 +189,7 @@ Unter **Deine Freigaben** siehst du, wer deinen Plan sehen darf und wessen Plan 
 
 ## 9. Hell- und Dunkelmodus
 
-Im Dreipunktemenü **⋮** kannst du zwischen **Hell** und **Dunkel** wechseln. Deine Auswahl wird auf diesem Gerät im Browser gespeichert. Auf einem anderen Gerät kann daher eine andere Darstellung aktiv sein.
+Über den kleinen Schalter unter deinem Anmeldestatus oben rechts wechselst du zwischen **Hell** und **Dunkel**. Deine Auswahl wird auf diesem Gerät im Browser gespeichert. Auf einem anderen Gerät kann daher eine andere Darstellung aktiv sein.
 
 ## 10. Wenn etwas nicht klappt
 
