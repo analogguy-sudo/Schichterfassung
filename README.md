@@ -11,7 +11,7 @@ Deine Dienste, freien Tage und dein persönliches Stundenkonto an einem Ort. Die
 3. Wähle rechts die Art des Eintrags, ergänze die Angaben und klicke auf **Eintrag speichern**.
 4. Klicke später wieder auf den Tag, um den Inhalt rechts anzusehen oder zu bearbeiten.
 
-Die Hilfe erreichst du jederzeit oben über **Hilfe & Anleitung** – auch bevor du angemeldet bist. Ein Klick auf **Zur App** bringt dich zurück.
+Die Hilfe erreichst du jederzeit oben rechts über **⋮ → Hilfe & Anleitung** – auch bevor du angemeldet bist. Ein Klick auf **Zur App** bringt dich zurück.
 
 ## 2. Dein Konto und die Anmeldung
 
@@ -39,9 +39,13 @@ Ein alter oder bereits benutzter Link kann ungültig sein. Fordere dann einen ne
 
 ### Abmelden
 
-Über **Abmelden** verlässt du dein Konto auf diesem Gerät. Deine gespeicherten Einträge bleiben erhalten. Auf gemeinsam genutzten Geräten solltest du dich nach der Nutzung abmelden.
+Über **⋮ → Abmelden** verlässt du dein Konto auf diesem Gerät. Deine gespeicherten Einträge bleiben erhalten. Auf gemeinsam genutzten Geräten solltest du dich nach der Nutzung abmelden.
 
-## 3. Im Kalender zurechtfinden
+## 3. Menü und Kalender
+
+Oben rechts öffnest du mit **⋮** das Menü. Dort findest du **Hilfe & Anleitung**, den Wechsel zwischen Hell und Dunkel, **Freunde & Treffen**, **Kalender verbinden** sowie **Abmelden**. Freunde und Kalenderabo öffnen sich in einem eigenen Fenster, das du über **Schließen ×** oder die Escape-Taste wieder schließen kannst. Dein Kalender bleibt im Hintergrund erhalten. Vor der Anmeldung stehen nur Hilfe, Darstellung und Anmelden zur Verfügung.
+
+### Im Kalender zurechtfinden
 
 Mit **←** und **→** neben dem Monatsnamen wechselst du zum vorherigen oder nächsten Monat. So erreichst du auch das nächste Jahr: Nach Dezember 2026 folgt Januar 2027. Die Jahresübersicht richtet sich nach dem Jahr des angezeigten Monats.
 
@@ -112,7 +116,7 @@ In der **Jahresübersicht** steht zunächst ein Ziel von **2036 Stunden**. Trage
 
 ## 7. Deinen Kalender abonnieren
 
-Unter **Mit deinem Kalender verbinden** findest du **Feed-Adresse kopieren**. Damit kopierst du deinen persönlichen Kalenderlink. Füge ihn als Kalenderabonnement in Apple Kalender oder Google Kalender ein.
+Öffne oben rechts **⋮ → Kalender verbinden**. Im Fenster **Mit deinem Kalender verbinden** findest du **Feed-Adresse kopieren**. Damit kopierst du deinen persönlichen Kalenderlink. Füge ihn als Kalenderabonnement in Apple Kalender oder Google Kalender ein.
 
 Das Abonnement zeigt deine Einträge einschließlich ihrer Bezeichnungen. Es wird vom jeweiligen Kalenderdienst aktualisiert; Änderungen erscheinen nicht zwingend sofort. Bearbeite deine Schichten weiterhin in der Schichterfassungs-App. Änderungen im anderen Kalender werden nicht zurück in die App übertragen.
 
@@ -150,7 +154,7 @@ Für die Freunde-Funktion braucht jeder ein eigenes App-Konto. Eine Kontoeinladu
 
 ### Deinen Plan für einen Freund freigeben
 
-1. Öffne **Freunde & Treffen → Meinen Plan für einen Freund freigeben**.
+1. Öffne oben rechts **⋮ → Freunde & Treffen** und dort **Meinen Plan für einen Freund freigeben**.
 2. Trage deinen eigenen Namen ein, zum Beispiel **Alex**. Du wählst diesen Namen selbst; er muss nicht vorher irgendwo eingerichtet sein.
 3. Klicke auf **Einladungscode erstellen** und danach auf **Code kopieren**.
 4. Schicke den Code persönlich per E-Mail, WhatsApp oder auf einem anderen Weg an deinen Freund. Die App verschickt ihn nicht automatisch.
@@ -185,7 +189,7 @@ Unter **Deine Freigaben** siehst du, wer deinen Plan sehen darf und wessen Plan 
 
 ## 9. Hell- und Dunkelmodus
 
-Oben kannst du zwischen **Hell** und **Dunkel** wechseln. Deine Auswahl wird auf diesem Gerät im Browser gespeichert. Auf einem anderen Gerät kann daher eine andere Darstellung aktiv sein.
+Im Dreipunktemenü **⋮** kannst du zwischen **Hell** und **Dunkel** wechseln. Deine Auswahl wird auf diesem Gerät im Browser gespeichert. Auf einem anderen Gerät kann daher eine andere Darstellung aktiv sein.
 
 ## 10. Wenn etwas nicht klappt
 
