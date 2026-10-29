@@ -91,9 +91,9 @@ Nach dem Speichern bleibt das zuletzt verwendete Datum im Formular erhalten. So 
 
 Zum Ändern klickst du im Kalender auf den Tag und rechts beim gewünschten Eintrag auf **Bearbeiten**. Passe die Angaben an und klicke auf **Änderungen speichern**. Mit **Abbrechen** verlässt du die Bearbeitung ohne Speichern. Du kannst auch den Bearbeiten-Button in der Monatsübersicht verwenden.
 
-Die Art eines bestehenden Eintrags ist während der Bearbeitung gesperrt. Soll aus einer Schicht zum Beispiel Urlaub werden, musst du den alten Eintrag löschen und einen neuen in der richtigen Art anlegen.
+Du kannst die Art eines Eintrags beim Bearbeiten ändern. Beim Wechsel von Schicht oder Büro zu Krank wird die ursprüngliche Dauer nach Abzug der Pause vorausgefüllt. Prüfe die Gutschrift vor dem Speichern.
 
-Zum Löschen verwendest du das Löschen-Symbol (×) in der Monatsübersicht. **Es gibt derzeit kein Rückgängig.** Ein versehentlich gelöschter Eintrag muss erneut erfasst werden.
+Nach dem Löschen kannst du unter der Monatsübersicht **Letztes Löschen rückgängig** wählen. Mehrere Einträge lassen sich nacheinander wiederherstellen. Dies ist im selben Browser-Tab bis zu dessen Schließen möglich, auch nach einem Neuladen.
 
 ## 6. Monatszahlen und Jahresarbeitszeit verstehen
 
@@ -103,7 +103,9 @@ Für die angerechnete Zeit gelten diese Regeln:
 
 - **Schicht und Büro:** Erfasste Dauer abzüglich Pause. Tatsächliche Zeiten ersetzen ausgefüllte geplante Zeiten bei der Berechnung.
 - **Dispo-Tag:** 7 Stunden 48 Minuten je eingetragenem Kalendertag, auch am Wochenende.
-- **Urlaub und Krank:** 7 Stunden 48 Minuten je Tag von Montag bis Freitag. Samstag und Sonntag erhalten keine Stunden. Feiertage werden nicht gesondert erkannt.
+- **Urlaub:** 7:48 Stunden Montag bis Freitag, am Wochenende 0 Stunden.
+- **Krank:** Gutschrift der ursprünglichen Schicht, z. B. 8:07, auch am Wochenende. Ohne bekannte Gutschrift zählt der Tag vorerst mit 0 Stunden und die Jahresübersicht weist darauf hin. Bei unterschiedlichen Schichtlängen einzelne Tage erfassen.
+- **Feiertagsarbeit:** Am Schicht- oder Büroeintrag **An diesem Feiertag gearbeitet (+7:48)** markieren. Zuschlag einmal je Beginndatum, zusätzlich zur Dienstzeit. Feiertage werden nicht automatisch erkannt. Bei Nachtschichten gilt das Beginndatum; die Zuordnung bitte prüfen.
 - **Ruhe:** Keine Stundenanrechnung.
 
 Eine Schicht über Mitternacht wird dem Monat und Jahr ihres Beginns zugeordnet. Mehrtägiger Urlaub oder Krank wird für die Stundenberechnung auf die jeweiligen Monate und Jahre aufgeteilt. Überschneidende Einträge werden nicht automatisch verrechnet; vermeide doppelte Einträge für denselben Zeitraum.
@@ -112,7 +114,9 @@ Eine Schicht über Mitternacht wird dem Monat und Jahr ihres Beginns zugeordnet.
 
 Öffne **⋮ → Jahresübersicht**. Dort steht zunächst ein Ziel von **2036 Stunden**. Trage unter **Dein Jahresziel** deine eigene Jahresarbeitszeit ein und klicke auf **Jahresziel speichern**. Das Ziel gilt für das dort angezeigte Jahr und wird in deinem Konto gespeichert. Du kannst für ein anderes Jahr einen anderen Wert festlegen.
 
-**Angerechnete Zeit** ist die Summe deiner erfassten Zeiten und Tagespauschalen im Jahr. **Saldo zum Jahresziel** vergleicht diese Summe mit dem gesamten Jahresziel. Ein Minus zu Jahresbeginn bedeutet also nicht automatisch, dass du zu wenig gearbeitet hast – noch nicht erfasste oder zukünftige Dienste fehlen in dieser Summe.
+**Erfasst bis heute** zählt Einträge bis zum heutigen Datum. **Erfasst und geplant im gesamten Jahr** enthält zukünftige Dienste. Die **Prognose zum 31.12.** berechnet Startsaldo plus erfasste/geplante Stunden minus Jahresziel. Fehlende Einträge können das Ergebnis ändern.
+
+Der Startsaldo wird aus dem erfassten Vorjahr berechnet. Mit **Startsaldo speichern** kannst du ihn manuell festlegen (Stunden:Minuten, z. B. -40:00). Negative Überträge sind auf -40:00 begrenzt: Aus -115:00 werden -40:00, -25:00 bleiben -25:00. Positive Stunden werden vollständig übernommen. Der voraussichtliche Übertrag ins Folgejahr erscheint gesondert. Mit den Jahrespfeilen kannst du das Jahr wechseln.
 
 ## 7. Deinen Kalender abonnieren
 
