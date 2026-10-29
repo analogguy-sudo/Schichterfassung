@@ -76,6 +76,7 @@ function paidDayMinutes(entry,from,to){
  const start=entry.start_date>from?entry.start_date:from,end=entry.end_date<to?entry.end_date:to;
  if(start>end)return 0;
  const first=Date.parse(`${start}T00:00:00Z`),days=Math.round((Date.parse(`${end}T00:00:00Z`)-first)/86400000)+1;
+ if(entry.kind==='sick')return days*Number(entry.sick_daily_minutes||0);
  if(entry.kind==='dispo')return days*STANDARD_DAY_MINUTES;
  let weekdays=Math.floor(days/7)*5;
  for(let i=0;i<days%7;i++){const weekday=new Date(first+i*86400000).getUTCDay();if(weekday!==0&&weekday!==6)weekdays++;}
@@ -83,23 +84,55 @@ function paidDayMinutes(entry,from,to){
 }
 function creditedMinutes(entry,from,to){
  if(PAID_DAY_KINDS.includes(entry.kind))return paidDayMinutes(entry,from,to);
- return ['shift','office'].includes(entry.kind)&&entry.start_date>=from&&entry.start_date<=to?mins(entry):0;
+ return ['shift','office'].includes(entry.kind)&&entry.start_date>=from&&entry.start_date<=to?mins(entry)+(entry.holiday_work?holidayBonus(entry.start_date,from,to):0):0;
 }
+function holidayBonus(day,from,to){
+ // A marked holiday belongs to its start date. Count each day once, even with split duties.
+ if(day<from||day>to)return 0;
+ return STANDARD_DAY_MINUTES;
+}
+function totalCredit(from,to){
+ let sum=entries.reduce((n,e)=>n+creditedMinutes(e,from,to),0);
+ const counts=new Map();
+ for(const e of entries)if(['shift','office'].includes(e.kind)&&e.holiday_work&&e.start_date>=from&&e.start_date<=to)counts.set(e.start_date,(counts.get(e.start_date)||0)+1);
+ for(const count of counts.values())sum-=(count-1)*STANDARD_DAY_MINUTES;
+ return sum;
+}
+function annualOpening(year){
+ const manual=user?.user_metadata?.annual_opening_minutes?.[year];
+ if(Number.isInteger(manual))return Math.max(-2400,manual);
+ const years=entries.map(e=>Number(e.start_date.slice(0,4)));
+ if(!years.length||year<=Math.min(...years)||year>Math.max(...years)+1)return 0;
+ if(!entries.some(e=>e.start_date<=`${year-1}-12-31`&&e.end_date>=`${year-1}-01-01`))return 0;
+ return Math.max(-2400,annualClosing(year-1));
+}
+function annualClosing(year){return annualOpening(year)+totalCredit(`${year}-01-01`,`${year}-12-31`)-Math.round(annualHours(year)*60);}
+function signedMinutes(v){return `${v<0?'−':v>0?'+':''}${fmtM(Math.abs(v))}`;}
+function parseHoursMinutes(value){const m=String(value).trim().replace('−','-').match(/^([+-]?)(\d{1,5}):([0-5]\d)$/);return m?(m[1]==='-'?-1:1)*(Number(m[2])*60+Number(m[3])):null;}
+function hoursMinutes(v){return `${v<0?'-':''}${Math.floor(Math.abs(v)/60)}:${String(Math.abs(v)%60).padStart(2,'0')}`;}
 function annualHours(year){
  const value=user?.user_metadata?.annual_targets?.[year];
  return typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=10000?value:DEFAULT_ANNUAL_HOURS;
 }
 function renderAnnual(){
- const year=cursor.getFullYear(),target=Math.round(annualHours(year)*60),credited=entries.reduce((sum,e)=>sum+creditedMinutes(e,`${year}-01-01`,`${year}-12-31`),0),balance=credited-target;
+ const year=cursor.getFullYear(),from=`${year}-01-01`,to=`${year}-12-31`,cutoff=dateISO(new Date()),target=Math.round(annualHours(year)*60),credited=totalCredit(from,to),opening=annualOpening(year),balance=opening+credited-target;
  $('#annualTitle').textContent=`Jahresübersicht ${year}`;
  $('#annualTargetDisplay').textContent=fmtM(target);
  $('#annualCredited').textContent=fmtM(credited);
- $('#annualBalance').textContent=`${balance<0?'−':balance>0?'+':''}${fmtM(Math.abs(balance))}`;
+ $('#annualBalance').textContent=signedMinutes(balance);
  $('#annualBalance').classList.toggle('positive',balance>=0);
+ $('#annualToday').textContent=fmtM(totalCredit(from,cutoff<to?cutoff:to));
+ $('#annualTodayLabel').textContent=year>new Date().getFullYear()?'Bis heute (Jahr noch nicht begonnen)':year<new Date().getFullYear()?`Erfasst bis 31.12.${year}`:`Erfasst bis ${longDayFmt.format(new Date())}`;
+ $('#annualOpeningDisplay').textContent=signedMinutes(opening);
+ $('#annualNext').textContent=signedMinutes(Math.max(-2400,balance));
  $('#annualTargetYear').textContent=year;
- const input=$('#annualTarget');
- if(document.activeElement!==input){input.value=annualHours(year);input.dataset.year=String(year);}
- $('#annualStorageHint').textContent='Dein Jahresziel wird in deinem Konto gespeichert.';
+ const input=$('#annualTarget');if(document.activeElement!==input){input.value=annualHours(year);input.dataset.year=String(year);}
+ if(document.activeElement!==$('#openingBalance'))$('#openingBalance').value=hoursMinutes(opening);
+ $('#annualStorageHint').textContent='Die Prognose enthält nur eingetragene Dienste. Fehlende Tage, offene Krankgutschriften und nicht markierte Feiertage können den Saldo noch ändern.';
+ $('#sickMissingHint').textContent=entries.some(e=>e.kind==='sick'&&e.sick_daily_minutes==null&&e.start_date<=to&&e.end_date>=from)?'Achtung: Bei Kranktagen fehlt noch die Zeit der ursprünglichen Schicht. Diese Tage zählen vorerst mit 0 Stunden.':'';
+}
+async function saveOpening(event){
+ event.preventDefault();try{requireAccount();const year=cursor.getFullYear(),v=parseHoursMinutes($('#openingBalance').value);if(v===null)throw Error('Bitte Stunden:Minuten eingeben, z. B. -40:00.');const owner=user.id,{data:current,error:readError}=await supa.auth.getUser();if(readError)throw readError;if(user?.id!==owner||current.user?.id!==owner)throw Error('Bitte erneut anmelden.');const {data,error}=await supa.auth.updateUser({data:{annual_opening_minutes:{...(current.user.user_metadata?.annual_opening_minutes||{}),[year]:Math.max(-2400,v)}}});if(error)throw error;user=data.user;render();toast('Startsaldo gespeichert. Minusstunden sind auf −40:00 begrenzt.');}catch(e){toast(e.message);}
 }
 async function saveAnnualTarget(event){
  event.preventDefault();if(!supa||!user||!authReady||needsPasswordSetup){toast('Bitte zuerst anmelden.');return;}const input=$('#annualTarget'),button=$('#saveAnnualTarget'),year=Number(input.dataset.year),raw=input.value.trim(),hours=Number(raw.replace(',','.'));
@@ -117,10 +150,10 @@ function overlapsMonth(e){const monthStart=dateISO(new Date(cursor.getFullYear()
 function summary(e){if(e.kind==='shift')return `Schicht ${escapeHtml(e.shift_number||'')}`;if(e.kind==='office')return escapeHtml(e.title?.trim()||'Büro');return TYPES[e.kind]}
 function escapeHtml(v=''){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function render(){const monthEntries=entries.filter(overlapsMonth).sort((a,b)=>a.start_date.localeCompare(b.start_date)||(a.start_time||'').localeCompare(b.start_time||'')),visibleEntries=(selectedDate?entries.filter(e=>e.start_date<=selectedDate&&e.end_date>=selectedDate):monthEntries).sort((a,b)=>a.start_date.localeCompare(b.start_date)||(a.start_time||'').localeCompare(b.start_time||''));$('#monthTitle').textContent=monthFmt.format(cursor);$('#listMonth').textContent=monthFmt.format(cursor);$('#entryListTitle').textContent=selectedDate?`Einträge am ${longDayFmt.format(new Date(`${selectedDate}T12:00:00`))}`:'Einträge';$('#clearDay').hidden=!selectedDate;$('#emptyMessage').textContent=selectedDate?'Für diesen Tag gibt es noch keine Einträge.':'Erfasse rechts deine erste Schicht oder Abwesenheit.';
- const monthFrom=dateISO(new Date(cursor.getFullYear(),cursor.getMonth(),1)),monthTo=dateISO(new Date(cursor.getFullYear(),cursor.getMonth()+1,0)),monthMinutes=entries.reduce((sum,e)=>sum+creditedMinutes(e,monthFrom,monthTo),0);const shifts=monthEntries.filter(e=>e.kind==='shift');$('#statShifts').textContent=shifts.length;$('#statHours').innerHTML=`${Math.floor(monthMinutes/60)}<small> h ${String(monthMinutes%60).padStart(2,'0')} min</small>`;$('#statAway').textContent=monthEntries.filter(e=>['rest','vacation','sick','dispo'].includes(e.kind)).length;$('#statDeviations').textContent=monthEntries.filter(e=>e.actual_start||e.actual_end).length;
+ const monthFrom=dateISO(new Date(cursor.getFullYear(),cursor.getMonth(),1)),monthTo=dateISO(new Date(cursor.getFullYear(),cursor.getMonth()+1,0)),monthMinutes=totalCredit(monthFrom,monthTo);const shifts=monthEntries.filter(e=>e.kind==='shift');$('#statShifts').textContent=shifts.length;$('#statHours').innerHTML=`${Math.floor(monthMinutes/60)}<small> h ${String(monthMinutes%60).padStart(2,'0')} min</small>`;$('#statAway').textContent=monthEntries.filter(e=>['rest','vacation','sick','dispo'].includes(e.kind)).length;$('#statDeviations').textContent=monthEntries.filter(e=>e.actual_start||e.actual_end).length;
  const cal=$('#calendar');cal.innerHTML='';const first=new Date(cursor.getFullYear(),cursor.getMonth(),1),off=(first.getDay()+6)%7,start=new Date(cursor.getFullYear(),cursor.getMonth(),1-off);
  for(let i=0;i<42;i++){const d=new Date(start);d.setDate(start.getDate()+i);const iso=dateISO(d),cell=document.createElement('button'),dayEntries=entries.filter(e=>e.start_date<=iso&&e.end_date>=iso);cell.type='button';cell.className='day'+(d.getMonth()!==cursor.getMonth()?' dim':'')+(iso===dateISO(today)?' today':'')+(iso===selectedDate?' selected':'');cell.setAttribute('aria-pressed',String(iso===selectedDate));cell.setAttribute('aria-label',`${longDayFmt.format(d)}${dayEntries.length?`, ${dayEntries.length} Einträge`:''}`);cell.innerHTML=`<span>${d.getDate()}</span><div class="marks">${[...new Set(dayEntries.map(e=>e.kind))].map(k=>`<i class="dot ${k}"></i>`).join('')}</div>`;cell.onclick=()=>openDay(iso);cal.append(cell);}
- const list=$('#entryList');list.innerHTML='';$('#emptyState').style.display=visibleEntries.length?'none':'flex';for(const e of visibleEntries){const dt=new Date(`${e.start_date}T12:00:00`),timed=['shift','office'].includes(e.kind),time=timed?`${e.actual_start||e.start_time||'—'}–${e.actual_end||e.end_time||'—'}`:'Ganztägig';const row=document.createElement('div');row.className='entry-row';row.innerHTML=`<div class="entry-date"><b>${String(dt.getDate()).padStart(2,'0')}</b><br>${dayFmt.format(dt).split(' ')[0].toUpperCase()}</div><div class="entry-info"><b>${summary(e)}</b><span>${dateSpan(e)} · ${time}</span></div><span class="entry-kind ${e.kind}">${TYPES[e.kind]}</span><span class="entry-length">${timed||PAID_DAY_KINDS.includes(e.kind)?fmtM(mins(e)):''}</span><button class="edit" type="button" aria-label="Eintrag bearbeiten" title="Eintrag bearbeiten">✎</button><button class="delete" type="button" aria-label="Eintrag löschen" title="Eintrag löschen">×</button>`;row.querySelector('.edit').onclick=()=>editEntry(e.id);row.querySelector('.delete').onclick=()=>removeEntry(e.id);list.append(row);}renderDayPanel();renderAnnual();}
+ const list=$('#entryList');list.innerHTML='';$('#emptyState').style.display=visibleEntries.length?'none':'flex';for(const e of visibleEntries){const dt=new Date(`${e.start_date}T12:00:00`),timed=['shift','office'].includes(e.kind),time=timed?`${e.actual_start||e.start_time||'—'}–${e.actual_end||e.end_time||'—'}`:'Ganztägig';const row=document.createElement('div');row.className='entry-row';row.innerHTML=`<div class="entry-date"><b>${String(dt.getDate()).padStart(2,'0')}</b><br>${dayFmt.format(dt).split(' ')[0].toUpperCase()}</div><div class="entry-info"><b>${summary(e)}</b><span>${dateSpan(e)} · ${time}</span></div><span class="entry-kind ${e.kind}">${TYPES[e.kind]}</span><span class="entry-length">${timed||PAID_DAY_KINDS.includes(e.kind)?fmtM(mins(e)):''}</span><button class="edit" type="button" aria-label="Eintrag bearbeiten" title="Eintrag bearbeiten">✎</button><button class="delete" type="button" aria-label="Eintrag löschen" title="Eintrag löschen">×</button>`;row.querySelector('.edit').onclick=()=>editEntry(e.id);row.querySelector('.delete').onclick=()=>removeEntry(e.id);list.append(row);}renderDayPanel();renderAnnual();renderUndo();}
 function openDay(date){
  resetEntryForm(date);
  selectedDate=date;
@@ -159,8 +192,8 @@ function renderDayPanel(){
  add.onclick=()=>{resetEntryForm(selectedDate);renderDayPanel();};panel.append(add);
 }
 function resetEntryForm(startDate=dateISO(today)){dayPanelMode='form';editingId=null;form.reset();form.elements.date.value=startDate;form.elements.endDate.value=startDate;$('#formTitle').textContent='Eintrag erfassen';$('#saveEntry').innerHTML='Eintrag speichern <span>↗</span>';$('#cancelEdit').hidden=true;form.elements.kind.disabled=false;updateFields();}
-function editEntry(id){const e=entries.find(x=>x.id===id);if(!e)return;dayPanelMode='form';editingId=id;form.elements.kind.value=e.kind;form.elements.number.value=e.shift_number||'';form.elements.officeTitle.value=e.title||'';form.elements.date.value=e.start_date;form.elements.endDate.value=e.end_date;form.elements.start.value=e.start_time||'';form.elements.end.value=e.end_time||'';form.elements.breakMinutes.value=String(e.break_minutes||0);form.elements.actualStart.value=e.actual_start||'';form.elements.actualEnd.value=e.actual_end||'';updateFields();$('#formTitle').textContent='Eintrag bearbeiten';$('#saveEntry').innerHTML='Änderungen speichern <span>↗</span>';$('#cancelEdit').hidden=false;form.elements.kind.disabled=true;renderDayPanel();document.querySelector('.form-panel').scrollIntoView({behavior:'smooth',block:'start'});}
-function updateFields(){const kind=$('#kind').value;$('#dayCreditHint').hidden=!PAID_DAY_KINDS.includes(kind);$('#dayCreditHint').textContent=`${TYPES[kind]}: ${kind==='dispo'?'Pro eingetragenem Kalendertag':'Montag bis Freitag pro Tag'} werden 7 h 48 min angerechnet.`;const timed=kind==='shift'||kind==='office',multi=['vacation','sick','rest'].includes(kind);$('#numberWrap').hidden=kind!=='shift';$('#officeTitleWrap').hidden=kind!=='office';$('#timedFields').hidden=!timed;$('#breakWrap').hidden=kind==='shift'?false:kind!=='office';$('#deviationWrap').hidden=kind!=='shift';$('#endDateWrap').hidden=!multi;form.elements.number.required=kind==='shift';form.elements.start.required=timed;form.elements.end.required=timed;form.elements.endDate.required=multi;if(multi&&(!form.elements.endDate.value||form.elements.endDate.value<form.elements.date.value))form.elements.endDate.value=form.elements.date.value;}
+function editEntry(id){const e=entries.find(x=>x.id===id);if(!e)return;dayPanelMode='form';editingId=id;form.elements.kind.value=e.kind;form.elements.number.value=e.shift_number||'';form.elements.officeTitle.value=e.title||'';form.elements.date.value=e.start_date;form.elements.endDate.value=e.end_date;form.elements.start.value=e.start_time||'';form.elements.end.value=e.end_time||'';form.elements.breakMinutes.value=String(e.break_minutes||0);form.elements.actualStart.value=e.actual_start||'';form.elements.actualEnd.value=e.actual_end||'';updateFields();$('#formTitle').textContent='Eintrag bearbeiten';$('#saveEntry').innerHTML='Änderungen speichern <span>↗</span>';$('#cancelEdit').hidden=false;form.elements.kind.disabled=false;form.elements.sickCredit.value=e.sick_daily_minutes==null?'':hoursMinutes(e.sick_daily_minutes);form.elements.holidayWork.checked=!!e.holiday_work;updateFields();renderDayPanel();document.querySelector('.form-panel').scrollIntoView({behavior:'smooth',block:'start'});}
+function updateFields(){const kind=$('#kind').value;$('#dayCreditHint').hidden=!PAID_DAY_KINDS.includes(kind);$('#sickCreditWrap').hidden=kind!=='sick';form.elements.sickCredit.required=kind==='sick';$('#holidayWrap').hidden=!['shift','office'].includes(kind);$('#dayCreditHint').textContent=kind==='sick'?'Krank: Die Zeit der ursprünglichen Schicht wird für jeden eingetragenen Tag gutgeschrieben, auch am Wochenende. Bei unterschiedlichen Zeiten bitte einzelne Tage erfassen.':`${TYPES[kind]}: ${kind==='dispo'?'Pro eingetragenem Kalendertag':'Montag bis Freitag pro Tag'} werden 7 h 48 min angerechnet.`;const timed=kind==='shift'||kind==='office',multi=['vacation','sick','rest'].includes(kind);$('#numberWrap').hidden=kind!=='shift';$('#officeTitleWrap').hidden=kind!=='office';$('#timedFields').hidden=!timed;$('#breakWrap').hidden=kind==='shift'?false:kind!=='office';$('#deviationWrap').hidden=kind!=='shift';$('#endDateWrap').hidden=!multi;form.elements.number.required=kind==='shift';form.elements.start.required=timed;form.elements.end.required=timed;form.elements.endDate.required=multi;if(multi&&(!form.elements.endDate.value||form.elements.endDate.value<form.elements.date.value))form.elements.endDate.value=form.elements.date.value;}
 async function loadEntries(){
  const owner=user?.id;
  if(!supa||!owner||!authReady||needsPasswordSetup){entries=[];render();showMode();return;}
@@ -171,8 +204,14 @@ async function loadEntries(){
 }
 function requireAccount(){if(!supa||!user||!authReady||needsPasswordSetup)throw new Error('Bitte zuerst anmelden.');}
 async function saveEntry(entry){requireAccount();const {error}=await supa.from('entries').upsert(entry);if(error)throw error;await loadEntries();}
+function readTrash(){try{return JSON.parse(sessionStorage.getItem(`schichtplan.trash.${user?.id}`)||'[]');}catch{return [];}}
+function writeTrash(rows){sessionStorage.setItem(`schichtplan.trash.${user.id}`,JSON.stringify(rows));}
+function renderUndo(){const box=$('#undoBar');if(!box)return;const rows=user?readTrash():[];box.hidden=!user||!rows.length;$('#undoCount').textContent=rows.length;}
 async function removeEntry(id){
- try{requireAccount();const {error}=await supa.from('entries').delete().eq('id',id);if(error)throw error;await loadEntries();toast('Eintrag gelöscht');}catch(error){toast(error.message)}
+ try{requireAccount();const owner=user.id,entry=entries.find(e=>e.id===id);if(!entry)return;const {error}=await supa.from('entries').delete().eq('id',id);if(error)throw error;if(user?.id!==owner)return;writeTrash([...readTrash(),entry]);await loadEntries();renderUndo();toast('Eintrag gelöscht. Du kannst ihn unten wiederherstellen.');}catch(error){toast(error.message)}
+}
+async function undoDelete(){
+ try{requireAccount();const owner=user.id,rows=readTrash(),entry=rows.at(-1);if(!entry)return;if(entry.user_id!==owner)throw Error('Dieser Eintrag gehört zu einem anderen Konto.');const {error}=await supa.from('entries').insert(entry);if(error)throw error;if(user?.id!==owner)return;writeTrash(rows.slice(0,-1));await loadEntries();toast('Eintrag wiederhergestellt.');}catch(e){toast('Wiederherstellen fehlgeschlagen: '+e.message);}
 }
 function localIcs(){
  const esc=v=>String(v||'').replace(/\\/g,'\\\\').replace(/\n/g,'\\n').replace(/,/g,'\\,').replace(/;/g,'\\;'),fmt=d=>d.replaceAll('-','');
@@ -197,9 +236,10 @@ function downloadIcs(){const blob=new Blob([localIcs()],{type:'text/calendar;cha
 async function sha256(text){const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));return [...new Uint8Array(bytes)].map(x=>x.toString(16).padStart(2,'0')).join('')}
 async function feedToken(rotate=false){if(!user||!supa)return;const key=`schichtplan.feed.${user.id}`;let token=rotate?'':localStorage.getItem(key);if(!token){const b=crypto.getRandomValues(new Uint8Array(32));token=[...b].map(v=>v.toString(16).padStart(2,'0')).join('');const {error}=await supa.from('calendar_feeds').upsert({user_id:user.id,token_hash:await sha256(token)},{onConflict:'user_id'});if(error)throw error;localStorage.setItem(key,token);}const url=`${config.url}/functions/v1/calendar-feed?token=${encodeURIComponent(token)}`;await navigator.clipboard.writeText(url);toast(rotate?'Neuer Feed-Link kopiert. Der alte Link ist ungültig.':'Privater Feed-Link kopiert.');}
 form.elements.date.value=dateISO(today);form.elements.endDate.value=dateISO(today);$('#todayLabel').textContent=new Intl.DateTimeFormat('de-DE',{weekday:'long',day:'numeric',month:'long'}).format(today);updateFields();
-$('#kind').onchange=updateFields;form.elements.date.onchange=()=>{if(!$('#endDateWrap').hidden&&!form.elements.endDate.value)form.elements.endDate.value=form.elements.date.value};$('#prevMonth').onclick=()=>{cursor.setMonth(cursor.getMonth()-1);selectedDate=null;render()};$('#nextMonth').onclick=()=>{cursor.setMonth(cursor.getMonth()+1);selectedDate=null;render()};$('#clearDay').onclick=()=>{selectedDate=null;render()};
-form.onsubmit=async ev=>{ev.preventDefault();const wasEditing=!!editingId,d=new FormData(form),kind=editingId?entries.find(x=>x.id===editingId)?.kind:d.get('kind'),timed=['shift','office'].includes(kind),dateRange=['rest','vacation','sick'].includes(kind),endDate=dateRange?(d.get('endDate')||d.get('date')):d.get('date');if(endDate<d.get('date')){toast('Das Enddatum muss nach dem Beginn liegen.');return}const e={id:editingId||crypto.randomUUID(),kind,title:kind==='office'?d.get('officeTitle').trim():'',shift_number:d.get('number').trim(),start_date:d.get('date'),end_date:endDate,start_time:timed?d.get('start'):null,end_time:timed?d.get('end'):null,break_minutes:timed?Number(d.get('breakMinutes')):0,actual_start:kind==='shift'?(d.get('actualStart')||null):null,actual_end:kind==='shift'?(d.get('actualEnd')||null):null};try{await saveEntry(e);cursor=new Date(`${e.start_date}T12:00:00`);cursor.setDate(1);resetEntryForm(e.start_date);selectedDate=e.start_date;dayPanelMode='details';render();toast(wasEditing?'Änderungen gespeichert.':'Eintrag gespeichert.')}catch(err){toast('Speichern fehlgeschlagen: '+err.message)}};
+$('#kind').onchange=()=>{const old=entries.find(e=>e.id===editingId);if($('#kind').value==='sick'&&old&&['shift','office'].includes(old.kind)){form.elements.sickCredit.value=hoursMinutes(mins({...old,actual_start:null,actual_end:null}));form.elements.endDate.value=old.start_date;}updateFields();};form.elements.date.onchange=()=>{if(!$('#endDateWrap').hidden&&!form.elements.endDate.value)form.elements.endDate.value=form.elements.date.value};$('#prevMonth').onclick=()=>{cursor.setMonth(cursor.getMonth()-1);selectedDate=null;render()};$('#nextMonth').onclick=()=>{cursor.setMonth(cursor.getMonth()+1);selectedDate=null;render()};$('#clearDay').onclick=()=>{selectedDate=null;render()};
+form.onsubmit=async ev=>{ev.preventDefault();const wasEditing=!!editingId,d=new FormData(form),kind=d.get('kind'),timed=['shift','office'].includes(kind),dateRange=['rest','vacation','sick'].includes(kind),endDate=dateRange?(d.get('endDate')||d.get('date')):d.get('date');if(endDate<d.get('date')){toast('Das Enddatum muss nach dem Beginn liegen.');return}const sickCredit=kind==='sick'?parseHoursMinutes(d.get('sickCredit')):null;if(kind==='sick'&&(sickCredit===null||sickCredit<0||sickCredit>1440)){toast('Bitte ursprüngliche Schichtdauer als Stunden:Minuten eingeben, z. B. 8:07.');return;}const e={sick_daily_minutes:sickCredit,holiday_work:timed&&d.get('holidayWork')==='on',id:editingId||crypto.randomUUID(),kind,title:kind==='office'?d.get('officeTitle').trim():'',shift_number:d.get('number').trim(),start_date:d.get('date'),end_date:endDate,start_time:timed?d.get('start'):null,end_time:timed?d.get('end'):null,break_minutes:timed?Number(d.get('breakMinutes')):0,actual_start:kind==='shift'?(d.get('actualStart')||null):null,actual_end:kind==='shift'?(d.get('actualEnd')||null):null};try{await saveEntry(e);cursor=new Date(`${e.start_date}T12:00:00`);cursor.setDate(1);resetEntryForm(e.start_date);selectedDate=e.start_date;dayPanelMode='details';render();toast(wasEditing?'Änderungen gespeichert.':'Eintrag gespeichert.')}catch(err){toast('Speichern fehlgeschlagen: '+err.message)}};
 $('#annualTargetForm').onsubmit=saveAnnualTarget;
+$('#openingForm').onsubmit=saveOpening;$('#undoDelete').onclick=undoDelete;$('#annualPrev').onclick=()=>{cursor=new Date(cursor.getFullYear()-1,cursor.getMonth(),1);selectedDate=null;render();};$('#annualNextYear').onclick=()=>{cursor=new Date(cursor.getFullYear()+1,cursor.getMonth(),1);selectedDate=null;render();};
 $('#cancelEdit').onclick=()=>{if(selectedDate)openDay(selectedDate);else{resetEntryForm();renderDayPanel();}};
 $('#downloadIcs').onclick=downloadIcs;$('#copyFeed').onclick=()=>feedToken(false).catch(e=>toast(e.message));$('#rotateFeed').onclick=()=>feedToken(true).catch(e=>toast(e.message));
 const dialog=$('#authDialog');
