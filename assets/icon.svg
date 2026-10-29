@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>Schichterfassung</title>
+  <defs>
+    <linearGradient id="green" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#527c61"/>
+      <stop offset="1" stop-color="#254b38"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="224" fill="url(#green)"/>
+  <rect x="206" y="250" width="568" height="544" rx="88" fill="#163d2a" opacity=".23"/>
+  <rect x="194" y="226" width="568" height="544" rx="88" fill="#f5f3eb"/>
+  <path d="M194 382h568" stroke="#d9e2d6" stroke-width="20"/>
+  <path d="M346 194v108m264-108v108" fill="none" stroke="#f5f3eb" stroke-width="44" stroke-linecap="round"/>
+  <g fill="#b7c9b6">
+    <rect x="286" y="452" width="76" height="76" rx="20"/>
+    <rect x="434" y="452" width="76" height="76" rx="20"/>
+    <rect x="286" y="594" width="76" height="76" rx="20"/>
+  </g>
+  <rect x="434" y="594" width="76" height="76" rx="20" fill="#41694f"/>
+  <circle cx="704" cy="672" r="170" fill="#345b43"/>
+  <circle cx="704" cy="672" r="140" fill="#dce8ce"/>
+  <path d="M704 586v86l60 38" fill="none" stroke="#345b43" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
