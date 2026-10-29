@@ -45,3 +45,7 @@ revoke all on public.calendar_feeds from anon;
 grant select, insert, update, delete on public.calendar_feeds to authenticated;
 drop policy if exists "manage own calendar feed" on public.calendar_feeds;
 create policy "manage own calendar feed" on public.calendar_feeds for all to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+
+-- Gutschrift bei Krankheit und manuell markierte Feiertagsarbeit
+alter table public.entries add column if not exists sick_daily_minutes integer check (sick_daily_minutes between 0 and 1440);
+alter table public.entries add column if not exists holiday_work boolean not null default false;
