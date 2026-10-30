@@ -1,0 +1,11 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert/strict'),H=require('../holidays.js');
+const source=fs.readFileSync('app.js','utf8');const context=vm.createContext({window:{SchichtHolidays:H},console,Date});
+vm.runInContext('let user={user_metadata:{holiday_settings:{state:"HE"}}},entries=[];'+source.slice(source.indexOf('function mins('),source.indexOf('function overlapsMonth('))+';globalThis.test={totalCredit,annualOpening,setEntries:x=>entries=x,setState:s=>user.user_metadata.holiday_settings={state:s}}',context);
+const t=context.test;
+const e={id:'1',kind:'shift',start_date:'2026-12-24',end_date:'2026-12-24',start_time:'22:00',end_time:'06:00',break_minutes:30,holiday_work:true};
+t.setEntries([e]);assert.equal(t.totalCredit('2026-12-24','2026-12-24'),450);assert.equal(t.totalCredit('2026-12-25','2026-12-25'),468);assert.equal(t.totalCredit('2026-12-01','2026-12-31'),918,'Kein doppelter alter manueller Zuschlag');
+t.setEntries([{id:'1',kind:'sick',start_date:'2026-12-25',end_date:'2026-12-25',sick_daily_minutes:487},e]);assert.equal(t.totalCredit('2026-12-25','2026-12-25'),487,'Krankgutschrift bleibt; kein Feiertagszuschlag');
+t.setEntries([{id:'1',kind:'vacation',start_date:'2026-12-25',end_date:'2026-12-26'}]);assert.equal(t.totalCredit('2026-12-25','2026-12-26'),468,'Urlaub Wochenende zählt weiterhin nicht');
+t.setEntries([{id:'1',kind:'rest',start_date:'2026-01-01',end_date:'2026-12-31'}]);assert.equal(t.totalCredit('2026-01-01','2026-12-31'),4680,'Alle zehn Feiertage in Hessen');assert.equal(t.annualOpening(2027),-2400,'Übertrag bleibt gedeckelt');
+t.setState('');assert.equal(t.totalCredit('2026-01-01','2026-12-31'),0,'Ohne Bundesland kein Raten');
+console.log('PASS: Monats-/Jahressalden, Nachtübertrag, Feiertags-Ruhe, Krank-/Urlaubsgutschrift und Ablösung manueller Markierungen.');

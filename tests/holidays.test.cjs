@@ -1,0 +1,36 @@
+const assert=require('node:assert/strict');
+const H=require('../holidays.js');
+const dates=(y,s,o)=>H.dates(y,s,o).map(h=>h.date);
+assert.deepEqual(dates(2026,'HE'),['2026-01-01','2026-04-03','2026-04-06','2026-05-01','2026-05-14','2026-05-25','2026-06-04','2026-10-03','2026-12-25','2026-12-26']);
+assert.deepEqual(dates(2027,'HE'),['2027-01-01','2027-03-26','2027-03-29','2027-05-01','2027-05-06','2027-05-17','2027-05-27','2027-10-03','2027-12-25','2027-12-26']);
+for(const [state,count] of Object.entries({BW:12,BY:12,BE:10,BB:12,HB:10,HH:10,HE:10,MV:11,NI:10,NW:11,RP:11,SL:12,SN:11,ST:11,SH:10,TH:11}))assert.equal(dates(2026,state).length,count,state);
+assert(dates(2026,'SN').includes('2026-11-18'));assert(dates(2027,'SN').includes('2027-11-17'));
+assert(dates(2026,'BB').includes('2026-04-05'));assert(!dates(2026,'HE').includes('2026-04-05'));
+assert(dates(2026,'BY',{assumption:true}).includes('2026-08-15'));assert(!dates(2026,'BY').includes('2026-08-15'));
+assert(dates(2026,'BY',{augsburg:true}).includes('2026-08-08'));assert(!dates(2026,'BW',{augsburg:true}).includes('2026-08-08'));
+assert(dates(2026,'SN',{corpusChristi:true}).includes('2026-06-04'));assert(!dates(2026,'SN').includes('2026-06-04'));
+assert(dates(2025,'BE').includes('2025-05-08'));assert(!dates(2026,'BE').includes('2026-05-08'));assert(!dates(2022,'MV').includes('2022-03-08'));
+assert(dates(2028,'BE').includes('2028-06-17'));assert(!dates(2027,'BE').includes('2027-06-17'));
+assert.deepEqual(dates(2019,'HE'),[]);assert.deepEqual(dates(2026,''),[]);
+const rest=(date,id='rest')=>({id,kind:'rest',start_date:date,end_date:date});
+const shift=(date,start,end,id='shift')=>({id,kind:'shift',start_date:date,end_date:date,start_time:start,end_time:end});
+const credit=(es,from='2026-12-25',to=from,state='HE')=>H.credits(es,from,to,state).reduce((s,h)=>s+h.minutes,0);
+assert.equal(credit([rest('2026-12-25')]),468);
+assert.equal(credit([rest('2026-12-26')],'2026-12-26'),468,'Samstag zählt');
+assert.equal(credit([shift('2026-12-25','08:00','16:00')]),468);
+assert.equal(credit([shift('2026-12-24','22:00','06:00')]),468,'Hineinarbeit');
+assert.equal(credit([shift('2026-12-24','22:00','00:00')]),0,'Ende genau Mitternacht zählt nicht');
+assert.equal(credit([shift('2026-12-25','23:00','02:00')],'2026-12-25','2026-12-26'),936,'Zwei Feiertage');
+assert.equal(credit([shift('2026-12-24','22:00','06:00'),shift('2026-12-25','14:00','20:00','other'),rest('2026-12-25')]),468,'Nie doppelt');
+for(const kind of ['sick','vacation'])assert.equal(credit([shift('2026-12-24','22:00','06:00'),rest('2026-12-25'),{kind,start_date:'2026-12-25',end_date:'2026-12-26'}]),0,kind+' hat Vorrang');
+assert.equal(credit([{...rest('2026-12-25'),kind:'dispo'}]),0);assert.equal(credit([]),0);
+assert.equal(credit([shift('2026-12-31','22:00','06:00')],'2027-01-01'),468,'Jahreswechsel');
+assert.equal(credit([shift('2026-04-30','22:00','06:00')],'2026-05-01'),468,'Monatswechsel');
+assert.equal(credit([{...shift('2026-12-24','22:00','06:00'),actual_end:'00:00'}]),0,'Tatsächliche Zeit');
+assert.equal(credit([{...shift('2026-12-24','22:00','00:00'),actual_end:'00:01'}]),468);
+assert.equal(credit([shift('2026-12-25','08:00:00','16:00:00')]),468);
+assert.equal(credit([rest('2026-12-25')],'2026-12-25','2026-12-25',''),0);
+const copy=H.dates(2026,'HE');copy[0].date='bad';assert.equal(H.dates(2026,'HE')[0].date,'2026-01-01');
+// Every Easter-derived date is internally consistent over the supported years.
+for(let year=2020;year<=2099;year++){const hs=H.dates(year,'HE');assert.equal(hs.length,10);assert.equal(new Set(hs.map(h=>h.date)).size,10);assert.equal(new Date(hs.find(h=>h.name==='Karfreitag').date+'T12:00:00Z').getUTCDay(),5);}
+console.log('PASS: 16 Bundesländer, Hessen 2026/2027, regionale Ausnahmen, Osterberechnung 2020–2099, Ruhe, Arbeit, Nacht-, Monats-/Jahreswechsel, Urlaub/Krank-Vorrang, Mitternacht und doppelte Einträge.');

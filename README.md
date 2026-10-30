@@ -105,7 +105,7 @@ Für die angerechnete Zeit gelten diese Regeln:
 - **Dispo-Tag:** 7 Stunden 48 Minuten je eingetragenem Kalendertag, auch am Wochenende.
 - **Urlaub:** 7:48 Stunden Montag bis Freitag, am Wochenende 0 Stunden.
 - **Krank:** Gutschrift der ursprünglichen Schicht, z. B. 8:07, auch am Wochenende. Ohne bekannte Gutschrift zählt der Tag vorerst mit 0 Stunden und die Jahresübersicht weist darauf hin. Bei unterschiedlichen Schichtlängen einzelne Tage erfassen.
-- **Feiertagsarbeit:** Am Schicht- oder Büroeintrag **An diesem Feiertag gearbeitet (+7:48)** markieren. Zuschlag einmal je Beginndatum, zusätzlich zur Dienstzeit. Feiertage werden nicht automatisch erkannt. Bei Nachtschichten gilt das Beginndatum; die Zuordnung bitte prüfen.
+- **Feiertage:** Wähle unter **⋮ → Jahresübersicht → Bundesland & Feiertage** dein Bundesland und speichere es. Die gesetzlichen Feiertage werden automatisch berechnet. Je Feiertag gibt es einmal zusätzlich 7:48 Stunden bei Ruhe oder Arbeit, auch bei Hineinarbeit vom Vorabend. Urlaub oder Krank am Feiertag schließen den Zuschlag aus. Dispo oder ungeplante Tage allein lösen keine Gutschrift aus. In Bayern, Sachsen und Thüringen sind gegebenenfalls örtliche Zusatzoptionen nötig. Ohne Bundesland gibt es keine automatische Feiertagsgutschrift. [Regeln, regionale Ausnahmen und Quellen](FEIERTAGE.md).
 - **Ruhe:** Keine Stundenanrechnung.
 
 Eine Schicht über Mitternacht wird dem Monat und Jahr ihres Beginns zugeordnet. Mehrtägiger Urlaub oder Krank wird für die Stundenberechnung auf die jeweiligen Monate und Jahre aufgeteilt. Überschneidende Einträge werden nicht automatisch verrechnet; vermeide doppelte Einträge für denselben Zeitraum.
@@ -211,3 +211,4 @@ Unter **Deine Freigaben** siehst du, wer deinen Plan sehen darf und wessen Plan 
 Die Menünamen externer Kalender können je nach Gerät und Version leicht abweichen. Aktuelle Anleitungen: [Apple Kalender abonnieren](https://support.apple.com/de-de/102301) und [Google Kalender per URL hinzufügen](https://support.google.com/calendar/answer/37100?hl=de).
 
 Stand: 28. Oktober 2026. Diese Anleitung beschreibt die aktuell vorhandenen Funktionen. Technische Einrichtung und Entwicklung stehen getrennt in [TECHNIK.md](TECHNIK.md).
+
