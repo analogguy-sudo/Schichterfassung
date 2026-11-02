@@ -270,10 +270,11 @@ function setAuthMode(mode){
  $('#authTitle').textContent=reset?'Passwort zurücksetzen':signup?'Konto erstellen':'Anmelden';
  $('#authSubmit').textContent=reset?'Link anfordern':signup?'Konto erstellen':'Anmelden';
  $('#toggleAuth').textContent=signup?'Schon ein Konto? Anmelden':'Konto erstellen';
- $('#toggleAuth').hidden=reset;$('#forgotPassword').textContent=reset?'Zurück zur Anmeldung':'Passwort vergessen?';
+ // Konten gibt es nur per Einladung; Registrierungen sind im Supabase-Projekt abgeschaltet.
+ $('#toggleAuth').hidden=true;$('#forgotPassword').textContent=reset?'Zurück zur Anmeldung':'Passwort vergessen?';
  $('#authPasswordWrap').hidden=reset;$('#authForm').elements.password.required=!reset;
  $('#authForm').elements.password.autocomplete=signup?'new-password':'current-password';
- $('#authHint').textContent=reset?'Du erhältst einen Link, über den du ein neues Passwort festlegen kannst.':signup?'Erstelle ein Konto und bestätige anschließend deine E-Mail. Bereits eingeladen? Öffne stattdessen den Link aus der Einladung.':'Melde dich mit deinem persönlichen Konto an. Eingeladen? Öffne zuerst den Einladungslink, um dein Passwort festzulegen.';
+ $('#authHint').textContent=reset?'Du erhältst einen Link, über den du ein neues Passwort festlegen kannst.':signup?'Erstelle ein Konto und bestätige anschließend deine E-Mail. Bereits eingeladen? Öffne stattdessen den Link aus der Einladung.':'Melde dich mit deinem persönlichen Konto an. Die Schichterfassung ist nur mit Einladung nutzbar: Öffne zuerst den Einladungslink, um dein Passwort festzulegen.';
  $('#authError').hidden=true;
 }
 function openLogin(){if(!supa)return;setAuthMode('login');$('#authForm').reset();dialog.showModal();}

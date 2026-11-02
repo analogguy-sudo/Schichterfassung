@@ -23,9 +23,9 @@ Die Hilfe erreichst du jederzeit oben rechts über **⋮ → Hilfe & Anleitung**
 
 Klicke auf **Anmelden**, gib deine E-Mail-Adresse und dein Passwort ein und bestätige die Anmeldung. Dein Kalender gehört zu diesem Konto. Für dieselben Einträge auf einem anderen Gerät verwendest du dasselbe Konto.
 
-### Du möchtest selbst ein Konto erstellen
+### Du möchtest ein Konto
 
-Öffne **Anmelden** und anschließend **Konto erstellen**. Trage E-Mail und Passwort ein. Öffne danach die Bestätigungsmail und bestätige deine Adresse. Erst dann meldest du dich an. Eine Einladung durch einen Freund ersetzt dieses eigene App-Konto nicht.
+Die Schichterfassung ist nur mit Einladung nutzbar; eine eigene Registrierung gibt es nicht. Bitte Alexander um eine Einladung. Er verschickt sie in Supabase unter **Authentication → Users → Invite user**.
 
 ### Du hast dein Passwort vergessen
 
