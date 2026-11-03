@@ -102,8 +102,7 @@ function renderHolidaySettings(year){
   $('#holidayState').value=settings.state;$('#localAssumption').checked=!!settings.assumption;$('#localAugsburg').checked=!!settings.augsburg;$('#localCorpus').checked=!!settings.corpusChristi;updateHolidayOptions();
  }
  $('#holidayStateHint').textContent=settings.state?`Gespeichert für dein Konto: ${window.SchichtHolidays.states[settings.state]}. Gutschrift bei Ruhe oder Arbeit, auch wenn der Dienst am Vorabend beginnt. Urlaub und Krank schließen den Zuschlag am jeweiligen Tag aus.`:'Bitte wähle dein Bundesland. Bis zum Speichern werden keine automatischen Feiertagsstunden angerechnet.';
- const rows=holidayCredits(`${year}-01-01`,`${year}-12-31`),total=rows.reduce((sum,h)=>sum+h.minutes,0);
- $('#annualHolidayTotal').textContent=fmtM(total);
+ const rows=holidayCredits(`${year}-01-01`,`${year}-12-31`);
  const list=$('#holidayYearList');list.replaceChildren();
  if(!window.SchichtHolidays.supported(year)){const p=document.createElement('p');p.textContent=`Feiertagsregeln sind für ${window.SchichtHolidays.MIN_YEAR} bis ${window.SchichtHolidays.MAX_YEAR} hinterlegt.`;list.append(p);return;}
  for(const h of rows){const row=document.createElement('li');row.innerHTML=`<div><b>${escapeHtml(h.name)}</b><span>${escapeHtml(dayFmt.format(new Date(h.date+'T12:00:00')))} · ${escapeHtml(h.reason)}</span></div><strong>${h.minutes?'+7:48':'0:00'}</strong>`;list.append(row);}
@@ -137,7 +136,6 @@ function renderAnnual(){
  const year=cursor.getFullYear(),from=`${year}-01-01`,to=`${year}-12-31`,cutoff=dateISO(new Date()),target=Math.round(annualHours(year)*60),credited=totalCredit(from,to),opening=annualOpening(year),balance=opening+credited-target;
  $('#annualTitle').textContent=`Jahresübersicht ${year}`;
  $('#annualTargetDisplay').textContent=fmtM(target);
- $('#annualCredited').textContent=fmtM(credited);
  $('#annualBalance').textContent=signedMinutes(balance);
  $('#annualBalance').classList.toggle('positive',balance>=0);
  $('#annualToday').textContent=fmtM(totalCredit(from,cutoff<to?cutoff:to));
