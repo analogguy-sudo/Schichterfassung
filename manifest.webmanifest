@@ -1,0 +1,16 @@
+{
+  "name": "Schichterfassung",
+  "short_name": "Schichterfassung",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f2ed",
+  "theme_color": "#f4f2ed",
+  "icons": [
+    {
+      "src": "assets/icon-liquid-glass-180.png?v=2",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}
