@@ -1,7 +1,7 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const source=fs.readFileSync('app.js','utf8'),html=fs.readFileSync('index.html','utf8');
 const session=id=>({access_token:'fake-'+id,user:{id,email_confirmed_at:'2026-10-27',user_metadata:{}}});
-function setup({active=null,href='https://analogguy-sudo.github.io/Schichterfassung/',badUser=false,sessionValues=new Map(),queryError=false}={}){
+function setup({active=null,href='https://analogguy-sudo.github.io/Schichterfassung/',badUser=false,sessionValues=new Map(),queryError=false,storage:sharedStorage=null}={}){
  const nodes=new Map(),events=[],calls={updates:[],queries:0,signups:0},timers=[];let current=active,listener;
  class Element {
   constructor(){this.value='';this.hidden=false;this.children=[];this.style={};this.dataset={};this.classList={add(){},remove(){},toggle(){}};this.parts=new Map();this.attributes={};this.disabled=false;}
@@ -27,11 +27,11 @@ function setup({active=null,href='https://analogguy-sudo.github.io/Schichterfass
   signOut:async()=>{current=null;listener?.('SIGNED_OUT',null);return {error:null}}
  };
  const client={auth,from:()=>({select:()=>({order:async()=>{calls.queries++;return {data:rows[current?.user.id]||[],error:queryError?new Error('offline'):null}}}),upsert:async()=>({error:null}),delete:()=>({eq:async()=>({error:null})})})};
- const storage=new Map([['schichtplan.entries.v2','[{"id":"local-secret","kind":"office","title":"PRIVATE LOCAL DATA","start_date":"2026-10-27","end_date":"2026-10-27","start_time":"08:00","end_time":"09:00"}]']]);
- const ctx=vm.createContext({console,Date,Intl,JSON,String,Number,Set,Math,URL,URLSearchParams,window:{location:{href},history:{replaceState(...args){events.push(args)}},SCHICHTPLAN_CONFIG:{url:'https://test.supabase.co',publishableKey:'publishable-test'},SchichtHolidays:require('../holidays.js'),supabase:{createClient:()=>client},matchMedia:()=>({matches:false})},document:{title:'Test',querySelector:node,createElement:()=>new Element()},sessionStorage:{getItem:k=>sessionValues.get(k)||null,setItem:(k,v)=>sessionValues.set(k,v),removeItem:k=>sessionValues.delete(k)},localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v)},setTimeout:f=>timers.push(f),FormData:class{constructor(f){this.f=f}get(k){return this.f.elements[k]?.value||null}}});
+ const storage=sharedStorage||new Map([['schichtplan.entries.v2','[{"id":"local-secret","kind":"office","title":"PRIVATE LOCAL DATA","start_date":"2026-10-27","end_date":"2026-10-27","start_time":"08:00","end_time":"09:00"}]']]);
+ const ctx=vm.createContext({console,Date,Intl,JSON,String,Number,Set,Math,URL,URLSearchParams,window:{location:{href},history:{replaceState(...args){events.push(args)}},SCHICHTPLAN_CONFIG:{url:'https://test.supabase.co',publishableKey:'publishable-test'},SchichtHolidays:require('../holidays.js'),supabase:{createClient:()=>client},matchMedia:()=>({matches:false})},document:{title:'Test',querySelector:node,createElement:()=>new Element()},sessionStorage:{getItem:k=>sessionValues.get(k)||null,setItem:(k,v)=>sessionValues.set(k,v),removeItem:k=>sessionValues.delete(k)},localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},setTimeout:f=>timers.push(f),FormData:class{constructor(f){this.f=f}get(k){return this.f.elements[k]?.value||null}}});
  const run=s=>vm.runInContext(s,ctx);run(source);
  async function settle(){for(let i=0;i<25;i++)await Promise.resolve();}
- return {node,run,calls,auth,sessionValues,settle,events,async emit(event,s){current=s;listener(event,s);while(timers.length){const f=timers.shift();f();await settle();}},setCurrent(s){current=s}};
+ return {node,run,calls,storage,auth,sessionValues,settle,events,async emit(event,s){current=s;listener(event,s);while(timers.length){const f=timers.shift();f();await settle();}},setCurrent(s){current=s}};
 }
 (async()=>{
  assert.match(html,/<main id="appContent" hidden>/);assert.match(html,/id="passwordSetupForm" hidden/);
@@ -49,5 +49,10 @@ function setup({active=null,href='https://analogguy-sudo.github.io/Schichterfass
  t=setup();await t.settle();t.run("setAuthMode('signup')");const a=t.node('#authForm');a.elements.email.value='test@example.invalid';a.elements.password.value='example-password';await a.onsubmit({preventDefault(){},currentTarget:a});assert.match(t.node('#authError').textContent,/Einladungslink/);assert.equal(t.node('#appContent').hidden,true);
  t=setup({active:session('one')});await t.settle();await t.emit('SIGNED_IN',session('two'));assert.equal(t.run('entries.length'),0);assert.equal(t.node('#appContent').hidden,false);
  t=setup({active:session('one'),href:'https://analogguy-sudo.github.io/Schichterfassung/?token_hash=fake-token&type=recovery'});await t.settle();assert.equal(t.calls.queries,0);assert.equal(t.node('#passwordSetupForm').hidden,true);assert.equal(t.node('#gateLogin').textContent,'Passwort festlegen');await t.node('#gateLogin').onclick();await t.settle();assert.equal(t.node('#passwordSetupForm').hidden,false);assert.equal(t.calls.queries,0);
- console.log('OK: geschützte Startseite, verifizierte Sitzung, keine lokalen Fremddaten, Abmeldung, Einladung, Passwortvergleich, Reload, abgelaufener Link, Wiederherstellung und Kontowechsel.');
+ t=setup({active:session('one')});assert.equal(t.node('#authGate').hidden,true);await t.settle();assert.equal(t.node('#authGate').hidden,true);assert.equal(t.node('#appContent').hidden,false);
+ t.run("openDay('2026-10-27')");t.node('#openAnnual').onclick();assert.match(t.storage.get('schichtplan.view.one'),/"day":"2026-10-27".*"dialog":"annualDialog"/);
+ const kept=setup({active:session('one'),storage:t.storage});await kept.settle();assert.equal(kept.run('selectedDate'),'2026-10-27');assert.equal(kept.run("dayPanelMode"),'details');assert.equal(kept.node('#annualDialog').open,true);
+ await kept.node('#authButton').onclick();assert.equal(kept.storage.has('schichtplan.view.one'),false);
+ const fresh=setup({active:session('two'),storage:t.storage});await fresh.settle();assert.equal(fresh.run('selectedDate'),null);assert.ok(!fresh.node('#annualDialog').open);
+ console.log('OK: geschützte Startseite, verifizierte Sitzung, keine lokalen Fremddaten, Abmeldung, Einladung, Passwortvergleich, Reload, abgelaufener Link, Wiederherstellung, Kontowechsel, kein Anmelde-Aufblitzen und gemerkte Ansicht.');
 })().catch(e=>{console.error(e);process.exitCode=1});

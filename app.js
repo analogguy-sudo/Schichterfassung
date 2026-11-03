@@ -14,7 +14,7 @@ function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');se
 function showMode(){
  window.schichtFriends?.setSession(supa,authReady&&!needsPasswordSetup?user:null,entries);
  const ready=!!(supa&&user&&authReady&&!needsPasswordSetup&&!awaitingLinkConfirmation);
- $('#appContent').hidden=!ready;$('#authGate').hidden=ready;
+ $('#appContent').hidden=!ready;$('#authGate').hidden=ready||!authReady;
  if($('#appMenu')){
   $('#openFriends').hidden=!ready;$('#openCalendar').hidden=!ready;
   if($('#openAnnual'))$('#openAnnual').hidden=!ready;
@@ -30,6 +30,19 @@ function showMode(){
  $('#gateLogin').hidden=!!(user&&needsPasswordSetup);$('#gateLogin').disabled=!supa||!authReady;
  $('#gateTitle').textContent=user&&needsPasswordSetup?'Dein Konto einrichten':'Deine Schichten. Dein Konto.';
  $('#gateMessage').textContent=awaitingLinkConfirmation?'Klicke auf „Passwort festlegen“, um deinen E-Mail-Link zu bestätigen und dein Passwort einzurichten.':authNotice||(user&&needsPasswordSetup?'Deine E-Mail ist bestätigt. Lege jetzt dein persönliches Passwort fest.':!supa?'Die Anmeldung ist gerade nicht verfügbar. Bitte lade die Seite erneut.':!authReady?'Deine Anmeldung wird geprüft…':'Melde dich an, um deinen persönlichen Kalender und dein Stundenkonto zu öffnen.');
+}
+const VIEW_DIALOGS=['annualDialog','friendsDialog','calendarDialog'],VIEW_MAX_AGE=12*3600000;let viewRestoredFor=null;
+function saveView(){if(!user||!authReady||needsPasswordSetup||viewRestoredFor!==user.id)return;try{localStorage.setItem(`schichtplan.view.${user.id}`,JSON.stringify({month:dateISO(cursor),day:selectedDate,dialog:VIEW_DIALOGS.find(id=>$('#'+id)?.open)||'',scroll:Math.round(window.scrollY||0),at:Date.now()}));}catch{}}
+function restoreView(){
+ const owner=user.id;viewRestoredFor=owner;let view=null;
+ try{view=JSON.parse(localStorage.getItem(`schichtplan.view.${owner}`)||'null');}catch{}
+ if(!view||!(Date.now()-view.at<VIEW_MAX_AGE)||!/^\d{4}-\d{2}-\d{2}$/.test(view.month||''))return;
+ const month=new Date(`${view.month}T12:00:00`);cursor=new Date(month.getFullYear(),month.getMonth(),1);
+ if(/^\d{4}-\d{2}-\d{2}$/.test(view.day||'')){resetEntryForm(view.day);selectedDate=view.day;dayPanelMode=entries.some(e=>e.start_date<=view.day&&e.end_date>=view.day)?'details':'form';}
+ render();
+ if(VIEW_DIALOGS.includes(view.dialog))$('#'+view.dialog)?.showModal();
+ saveView();
+ if(view.scroll)window.requestAnimationFrame?.(()=>window.scrollTo?.(0,view.scroll));
 }
 function pendingSetup(userId){try{return sessionStorage.getItem(`schichtplan.setup.${userId}`)==='pending'}catch{return false}}
 function markSetup(userId,pending){try{if(pending)sessionStorage.setItem(`schichtplan.setup.${userId}`,'pending');else sessionStorage.removeItem(`schichtplan.setup.${userId}`)}catch{}}
@@ -170,7 +183,7 @@ function render(){const monthEntries=entries.filter(overlapsMonth).sort((a,b)=>a
  const monthFrom=dateISO(new Date(cursor.getFullYear(),cursor.getMonth(),1)),monthTo=dateISO(new Date(cursor.getFullYear(),cursor.getMonth()+1,0)),monthMinutes=totalCredit(monthFrom,monthTo);const shifts=monthEntries.filter(e=>e.kind==='shift');$('#statShifts').textContent=shifts.length;$('#statHours').innerHTML=`${Math.floor(monthMinutes/60)}<small> h ${String(monthMinutes%60).padStart(2,'0')} min</small>`;$('#statAway').textContent=monthEntries.filter(e=>['rest','vacation','sick','dispo'].includes(e.kind)).length;$('#statDeviations').textContent=monthEntries.filter(e=>e.actual_start||e.actual_end).length;
  const cal=$('#calendar');cal.innerHTML='';const first=new Date(cursor.getFullYear(),cursor.getMonth(),1),off=(first.getDay()+6)%7,start=new Date(cursor.getFullYear(),cursor.getMonth(),1-off);
  for(let i=0;i<42;i++){const d=new Date(start);d.setDate(start.getDate()+i);const iso=dateISO(d),cell=document.createElement('button'),dayEntries=entries.filter(e=>e.start_date<=iso&&e.end_date>=iso);cell.type='button';cell.className='day'+(d.getMonth()!==cursor.getMonth()?' dim':'')+(iso===dateISO(today)?' today':'')+(iso===selectedDate?' selected':'');cell.setAttribute('aria-pressed',String(iso===selectedDate));const holiday=window.SchichtHolidays?.dates(d.getFullYear(),holidaySettings().state,holidaySettings()).find(h=>h.date===iso);if(holiday){cell.classList.add('public-holiday');cell.title=holiday.name;}cell.setAttribute('aria-label',`${longDayFmt.format(d)}${holiday?`, ${holiday.name}`:''}${dayEntries.length?`, ${dayEntries.length} Einträge`:''}`);cell.innerHTML=`<span>${d.getDate()}</span><div class="marks">${[...new Set(dayEntries.map(e=>e.kind))].map(k=>`<i class="dot ${k}"></i>`).join('')}</div>`;cell.onclick=()=>openDay(iso);cal.append(cell);}
- const list=$('#entryList');list.innerHTML='';$('#emptyState').style.display=visibleEntries.length?'none':'flex';for(const e of visibleEntries){const dt=new Date(`${e.start_date}T12:00:00`),timed=['shift','office'].includes(e.kind),time=timed?`${e.actual_start||e.start_time||'—'}–${e.actual_end||e.end_time||'—'}`:'Ganztägig';const row=document.createElement('div');row.className='entry-row';row.innerHTML=`<div class="entry-date"><b>${String(dt.getDate()).padStart(2,'0')}</b><br>${dayFmt.format(dt).split(' ')[0].toUpperCase()}</div><div class="entry-info"><b>${summary(e)}</b><span>${dateSpan(e)} · ${time}</span></div><span class="entry-kind ${e.kind}">${TYPES[e.kind]}</span><span class="entry-length">${timed||PAID_DAY_KINDS.includes(e.kind)?fmtM(mins(e)):''}</span><button class="edit" type="button" aria-label="Eintrag bearbeiten" title="Eintrag bearbeiten">✎</button><button class="delete" type="button" aria-label="Eintrag löschen" title="Eintrag löschen">×</button>`;row.querySelector('.edit').onclick=()=>editEntry(e.id);row.querySelector('.delete').onclick=()=>removeEntry(e.id);list.append(row);}renderDayPanel();renderAnnual();renderUndo();}
+ const list=$('#entryList');list.innerHTML='';$('#emptyState').style.display=visibleEntries.length?'none':'flex';for(const e of visibleEntries){const dt=new Date(`${e.start_date}T12:00:00`),timed=['shift','office'].includes(e.kind),time=timed?`${e.actual_start||e.start_time||'—'}–${e.actual_end||e.end_time||'—'}`:'Ganztägig';const row=document.createElement('div');row.className='entry-row';row.innerHTML=`<div class="entry-date"><b>${String(dt.getDate()).padStart(2,'0')}</b><br>${dayFmt.format(dt).split(' ')[0].toUpperCase()}</div><div class="entry-info"><b>${summary(e)}</b><span>${dateSpan(e)} · ${time}</span></div><span class="entry-kind ${e.kind}">${TYPES[e.kind]}</span><span class="entry-length">${timed||PAID_DAY_KINDS.includes(e.kind)?fmtM(mins(e)):''}</span><button class="edit" type="button" aria-label="Eintrag bearbeiten" title="Eintrag bearbeiten">✎</button><button class="delete" type="button" aria-label="Eintrag löschen" title="Eintrag löschen">×</button>`;row.querySelector('.edit').onclick=()=>editEntry(e.id);row.querySelector('.delete').onclick=()=>removeEntry(e.id);list.append(row);}renderDayPanel();renderAnnual();renderUndo();saveView();}
 function openDay(date){
  resetEntryForm(date);
  selectedDate=date;
@@ -219,6 +232,7 @@ async function loadEntries(){
  if(user?.id!==owner||!authReady||needsPasswordSetup)return;
  if(error){entries=[];toast('Einträge konnten nicht geladen werden: '+error.message)}else entries=data||[];
  render();showMode();
+ if(!error&&user?.id===owner&&viewRestoredFor!==owner)restoreView();
 }
 function requireAccount(){if(!supa||!user||!authReady||needsPasswordSetup)throw new Error('Bitte zuerst anmelden.');}
 async function saveEntry(entry){requireAccount();const {error}=await supa.from('entries').upsert(entry);if(error)throw error;await loadEntries();}
@@ -279,7 +293,7 @@ function openLogin(){if(!supa)return;setAuthMode('login');$('#authForm').reset()
 $('#gateLogin').onclick=()=>awaitingLinkConfirmation?initializeAuth(true):openLogin();
 $('#authButton').onclick=async()=>{
  if(user){
-  const oldUser=user.id;authGeneration++;initialSetup='';user=null;entries=[];editingId=null;needsPasswordSetup=false;authNotice='';authReady=true;markSetup(oldUser,false);resetEntryForm();render();showMode();
+  const oldUser=user.id;try{localStorage.removeItem(`schichtplan.view.${oldUser}`);}catch{}viewRestoredFor=null;authGeneration++;initialSetup='';user=null;entries=[];editingId=null;needsPasswordSetup=false;authNotice='';authReady=true;markSetup(oldUser,false);resetEntryForm();render();showMode();
   const {error}=await supa.auth.signOut();if(error){authNotice='Abmeldung nicht abgeschlossen. Bitte versuche es erneut.';showMode();}return;
  }
  openLogin();
@@ -324,7 +338,7 @@ initializeAuth();
 const appMenu=$('#appMenu');
 if(appMenu){
 function closeAppMenu(){appMenu.open=false;}
-function openFeature(selector){try{requireAccount();closeAppMenu();$(selector).showModal();}catch(error){toast(error.message);}}
+function openFeature(selector){try{requireAccount();closeAppMenu();$(selector).showModal();saveView();}catch(error){toast(error.message);}}
 if($('#openAnnual'))$('#openAnnual').onclick=()=>openFeature('#annualDialog');
 if($('#closeAnnual'))$('#closeAnnual').onclick=()=>$('#annualDialog').close();
 $('#openFriends').onclick=()=>openFeature('#friendsDialog');
@@ -332,10 +346,12 @@ $('#openCalendar').onclick=()=>openFeature('#calendarDialog');
 $('#closeFriends').onclick=()=>$('#friendsDialog').close();
 $('#closeCalendar').onclick=()=>$('#calendarDialog').close();
 for(const id of ['annualDialog','friendsDialog','calendarDialog']){
- const panel=$('#'+id);panel?.addEventListener?.('close',()=>appMenu.querySelector('summary').focus());
+ const panel=$('#'+id);panel?.addEventListener?.('close',()=>{appMenu.querySelector('summary').focus();saveView();});
 }
 $('#authButton').addEventListener?.('click',closeAppMenu);
 document.addEventListener?.('click',event=>{if(appMenu.open&&!appMenu.contains(event.target))closeAppMenu();});
+document.addEventListener?.('visibilitychange',()=>{if(document.visibilityState==='hidden')saveView();});
+window.addEventListener?.('pagehide',saveView);
 document.addEventListener?.('keydown',event=>{if(event.key==='Escape'&&appMenu.open){closeAppMenu();appMenu.querySelector('summary').focus();}});
 }
 
