@@ -273,8 +273,8 @@ async function sha256(text){const bytes=await crypto.subtle.digest('SHA-256',new
 let feedUrl='',feedState='';
 function feedLink(token){return `${config.url}/functions/v1/calendar-feed?token=${encodeURIComponent(token)}`}
 function renderFeed(){
- const ready=!!feedUrl;$('#shareFeed').disabled=!ready;$('#copyFeed').disabled=!ready;
- $('#feedHint').textContent=feedState==='loading'?'Feed-Link wird geladen…':feedState==='elsewhere'?'Dein aktueller Feed-Link wurde auf einem anderen Gerät erstellt. Öffne „Kalender verbinden“ einmal dort, dann steht er hier auch bereit. Oder erstelle einen neuen Link; bestehende Abos musst du dann neu einrichten.':'Dein Feed-Link ist geheim. Wer den Link kennt, kann deinen Kalender lesen.';
+ const ready=!!feedUrl,elsewhere=feedState==='elsewhere';$('#shareFeed').disabled=!ready&&!elsewhere;$('#shareFeed').textContent=elsewhere?'Neuen Feed-Link erstellen':'Kalender teilen …';$('#copyFeed').disabled=!ready;
+ $('#feedHint').textContent=feedState==='loading'?'Feed-Link wird geladen…':feedState==='elsewhere'?'Dein bisheriger Feed-Link ist nur auf einem anderen Gerät gespeichert. Erstelle hier einen neuen Link und teile ihn danach. Bestehende Abos musst du dann neu einrichten.':'Dein Feed-Link ist geheim. Wer den Link kennt, kann deinen Kalender lesen.';
 }
 async function createFeed(owner){const b=crypto.getRandomValues(new Uint8Array(32)),token=[...b].map(v=>v.toString(16).padStart(2,'0')).join('');const {error}=await supa.from('calendar_feeds').upsert({user_id:owner,token_hash:await sha256(token),token},{onConflict:'user_id'});if(error)throw error;return token;}
 async function loadFeed(){
@@ -293,14 +293,14 @@ async function loadFeed(){
 }
 function feedShareText(){return `Abonniere meinen Schichtkalender:\n${feedUrl.replace(/^https:/,'webcal:')}\n\nFalls sich der Link nicht öffnet: iPhone-Einstellungen › Apps › Kalender › Kalenderaccounts › Account hinzufügen › Andere › Kalenderabo hinzufügen und diese Adresse einfügen:\n${feedUrl}`;}
 async function shareFeed(){
- if(!feedUrl)return;const text=feedShareText();
+ if(!feedUrl){if(feedState==='elsewhere')rotateFeed();return;}const text=feedShareText();
  if(navigator.share){try{await navigator.share({title:'Mein Schichtkalender',text});}catch(error){if(error?.name!=='AbortError')toast('Teilen nicht möglich: '+error.message);}return;}
  try{await navigator.clipboard.writeText(text);toast('Einladungstext mit Abo-Link kopiert.');}catch{toast('Kopieren nicht möglich. Bitte erneut versuchen.');}
 }
 async function copyFeed(){if(!feedUrl)return;try{await navigator.clipboard.writeText(feedUrl);toast('Privater Feed-Link kopiert.');}catch{toast('Kopieren nicht möglich. Bitte erneut versuchen.');}}
 async function rotateFeed(){
  if(!user||!supa||!window.confirm('Neuen Feed-Link erstellen? Alle bisherigen Abos, auch bei anderen Personen, bekommen dann keine Einträge mehr und müssen neu eingerichtet werden.'))return;
- const owner=user.id;try{const token=await createFeed(owner);if(user?.id!==owner)return;localStorage.setItem(`schichtplan.feed.${owner}`,token);feedUrl=feedLink(token);feedState='';renderFeed();toast('Neuer Feed-Link erstellt. Teile ihn jetzt erneut.');}catch(error){toast(error.message);}
+ const owner=user.id;try{const token=await createFeed(owner);if(user?.id!==owner)return;localStorage.setItem(`schichtplan.feed.${owner}`,token);feedUrl=feedLink(token);feedState='';renderFeed();toast('Neuer Feed-Link erstellt. Tippe jetzt auf „Kalender teilen …“.');}catch(error){toast(error.message);}
 }
 form.elements.date.value=dateISO(today);form.elements.endDate.value=dateISO(today);$('#todayLabel').textContent=new Intl.DateTimeFormat('de-DE',{weekday:'long',day:'numeric',month:'long'}).format(today);updateFields();
 $('#kind').onchange=()=>{const old=entries.find(e=>e.id===editingId);if($('#kind').value==='sick'&&old&&['shift','office'].includes(old.kind)){form.elements.sickCredit.value=hoursMinutes(mins({...old,actual_start:null,actual_end:null}));form.elements.endDate.value=old.start_date;}updateFields();};form.elements.date.onchange=()=>{if(!$('#endDateWrap').hidden&&!form.elements.endDate.value)form.elements.endDate.value=form.elements.date.value;renderHolidayDayHint();};$('#prevMonth').onclick=()=>{cursor.setMonth(cursor.getMonth()-1);selectedDate=null;render()};$('#nextMonth').onclick=()=>{cursor.setMonth(cursor.getMonth()+1);selectedDate=null;render()};$('#clearDay').onclick=()=>{selectedDate=null;render()};
