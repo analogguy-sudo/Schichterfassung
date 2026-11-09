@@ -253,7 +253,7 @@ function localIcs(){
  const esc=v=>String(v||'').replace(/\\/g,'\\\\').replace(/\n/g,'\\n').replace(/,/g,'\\,').replace(/;/g,'\\;'),fmt=d=>d.replaceAll('-','');
  const ev=[];
  for(const e of entries){
-  const lines=['BEGIN:VEVENT',`UID:${e.id}@schichterfassung`,`DTSTAMP:${new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'')}`,`SUMMARY:${esc(e.kind==='shift'?`Schicht ${e.shift_number}`:e.kind==='office'?(e.title?.trim()||'Büro'):TYPES[e.kind])}`];
+  const lines=['BEGIN:VEVENT',`UID:${e.id}@schichterfassung`,`DTSTAMP:${new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'')}`,`SUMMARY:${esc(`${e.kind==='shift'?`Schicht ${e.shift_number}`.trim():e.kind==='office'?(e.title?.trim()||'Büro'):TYPES[e.kind]}${['shift','office'].includes(e.kind)?` · ${(e.actual_start||e.start_time).slice(0,5)}–${(e.actual_end||e.end_time).slice(0,5)}`:''}`)}`];
   if(['shift','office'].includes(e.kind)){
    const start=e.actual_start||e.start_time,end=e.actual_end||e.end_time;let ed=e.start_date;
    if(end<=start){const d=new Date(`${ed}T12:00:00`);d.setDate(d.getDate()+1);ed=dateISO(d);}

@@ -75,10 +75,12 @@ Deno.serve(async (request) => {
       const timed = entry.kind === 'shift' || entry.kind === 'office';
       const startTime = entry.actual_start || entry.start_time;
       const endTime = entry.actual_end || entry.end_time;
-      const summary = entry.kind === 'shift'
+      const title = entry.kind === 'shift'
         ? `Schicht ${entry.shift_number || ''}`.trim()
         : entry.kind === 'office' ? entry.title?.trim() || 'Büro'
         : entryTypes[entry.kind] || 'Eintrag';
+      // Kalender-Apps zeigen im Monatsfeld oft nur den Beginn, daher die Zeitspanne im Titel.
+      const summary = timed ? `${title} · ${startTime.slice(0, 5)}–${endTime.slice(0, 5)}` : title;
       const lines = [
         'BEGIN:VEVENT',
         `UID:${entry.id}@schichterfassung`,
