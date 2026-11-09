@@ -38,6 +38,7 @@ create policy "delete own entries" on public.entries for delete to authenticated
 create table if not exists public.calendar_feeds (
   user_id uuid primary key references auth.users(id) on delete cascade,
   token_hash text not null unique,
+  token text,
   created_at timestamptz not null default now()
 );
 alter table public.calendar_feeds enable row level security;
@@ -45,6 +46,7 @@ revoke all on public.calendar_feeds from anon;
 grant select, insert, update, delete on public.calendar_feeds to authenticated;
 drop policy if exists "manage own calendar feed" on public.calendar_feeds;
 create policy "manage own calendar feed" on public.calendar_feeds for all to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+alter table public.calendar_feeds add column if not exists token text;
 
 -- Gutschrift bei Krankheit und manuell markierte Feiertagsarbeit
 alter table public.entries add column if not exists sick_daily_minutes integer check (sick_daily_minutes between 0 and 1440);

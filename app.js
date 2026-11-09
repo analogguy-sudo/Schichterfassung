@@ -10,7 +10,7 @@ const monthFmt=new Intl.DateTimeFormat('de-DE',{month:'long',year:'numeric'}), d
 let cursor=new Date(today.getFullYear(),today.getMonth(),1), entries=[], user=null, supa=null, authMode='login', editingId=null, selectedDate=null, dayPanelMode='form';
 const config=window.SCHICHTPLAN_CONFIG||{};
 if(window.supabase?.createClient&&config.url&&config.publishableKey&&!config.url.includes('DEIN_')&&!config.publishableKey.includes('DEIN_')){supa=window.supabase.createClient(config.url,config.publishableKey,{auth:{detectSessionInUrl:true,flowType:'implicit',persistSession:true,autoRefreshToken:true}});}
-function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600)}
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),4000)}
 function showMode(){
  window.schichtFriends?.setSession(supa,authReady&&!needsPasswordSetup?user:null,entries);
  const ready=!!(supa&&user&&authReady&&!needsPasswordSetup&&!awaitingLinkConfirmation);
@@ -23,8 +23,8 @@ function showMode(){
  $('#storageStatus').textContent=ready?'Angemeldet':user&&needsPasswordSetup?'Konto einrichten':authReady?'Bitte anmelden':'Anmeldung wird geprüft…';
  $('.status-dot').classList.toggle('online',ready);
  $('#authButton').textContent=user?'Abmelden':'Anmelden';$('#authButton').disabled=!supa||!authReady;
- $('#copyFeed').hidden=!ready;$('#rotateFeed').hidden=!ready;
- $('#feedHint').textContent='Dein Feed-Link ist geheim. Wer den Link kennt, kann deinen Kalender lesen.';
+ $('#shareFeed').hidden=!ready;$('#copyFeed').hidden=!ready;$('#rotateFeed').hidden=!ready;
+ if(!ready){feedUrl='';feedState='';}renderFeed();
  $('#passwordSetupForm').hidden=!(user&&needsPasswordSetup);
  $('#gateLogin').textContent=awaitingLinkConfirmation?'Passwort festlegen':'Anmelden';
  $('#gateLogin').hidden=!!(user&&needsPasswordSetup);$('#gateLogin').disabled=!supa||!authReady;
@@ -41,6 +41,7 @@ function restoreView(){
  if(/^\d{4}-\d{2}-\d{2}$/.test(view.day||'')){resetEntryForm(view.day);selectedDate=view.day;dayPanelMode=entries.some(e=>e.start_date<=view.day&&e.end_date>=view.day)?'details':'form';}
  render();
  if(VIEW_DIALOGS.includes(view.dialog))$('#'+view.dialog)?.showModal();
+ if(view.dialog==='calendarDialog')loadFeed();
  saveView();
  if(view.scroll)window.requestAnimationFrame?.(()=>window.scrollTo?.(0,view.scroll));
 }
@@ -153,6 +154,9 @@ function renderAnnual(){
  $('#annualBalance').classList.toggle('positive',balance>=0);
  $('#annualToday').textContent=fmtM(totalCredit(from,cutoff<to?cutoff:to));
  $('#annualTodayLabel').textContent=year>new Date().getFullYear()?'Bis heute (Jahr noch nicht begonnen)':year<new Date().getFullYear()?`Erfasst bis 31.12.${year}`:`Erfasst bis ${longDayFmt.format(new Date())}`;
+ const tomorrow=new Date();tomorrow.setDate(tomorrow.getDate()+1);const plannedFrom=dateISO(tomorrow)>from?dateISO(tomorrow):from,planned=plannedFrom<=to&&cutoff>=from?totalCredit(plannedFrom,to):0;
+ $('#annualTodayNote').textContent=`Geplant ab morgen: ${fmtM(planned)}. Änderungen an künftigen Einträgen wirken auf die Prognose.`;$('#annualTodayNote').hidden=!planned;
+ $('#annualNextNote').textContent=`Begrenzt auf −40 h. Rechnerisch: ${signedMinutes(balance)}.`;$('#annualNextNote').hidden=balance>=-2400;
  $('#annualOpeningDisplay').textContent=signedMinutes(opening);
  $('#annualNext').textContent=signedMinutes(Math.max(-2400,balance));
  $('#annualTargetYear').textContent=year;
@@ -266,16 +270,48 @@ function localIcs(){
 }
 function downloadIcs(){const blob=new Blob([localIcs()],{type:'text/calendar;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='schichterfassung.ics';a.click();URL.revokeObjectURL(a.href)}
 async function sha256(text){const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));return [...new Uint8Array(bytes)].map(x=>x.toString(16).padStart(2,'0')).join('')}
-async function feedToken(rotate=false){if(!user||!supa)return;const key=`schichtplan.feed.${user.id}`;let token=rotate?'':localStorage.getItem(key);if(!token){const b=crypto.getRandomValues(new Uint8Array(32));token=[...b].map(v=>v.toString(16).padStart(2,'0')).join('');const {error}=await supa.from('calendar_feeds').upsert({user_id:user.id,token_hash:await sha256(token)},{onConflict:'user_id'});if(error)throw error;localStorage.setItem(key,token);}const url=`${config.url}/functions/v1/calendar-feed?token=${encodeURIComponent(token)}`;await navigator.clipboard.writeText(url);toast(rotate?'Neuer Feed-Link kopiert. Der alte Link ist ungültig.':'Privater Feed-Link kopiert.');}
+let feedUrl='',feedState='';
+function feedLink(token){return `${config.url}/functions/v1/calendar-feed?token=${encodeURIComponent(token)}`}
+function renderFeed(){
+ const ready=!!feedUrl;$('#shareFeed').disabled=!ready;$('#copyFeed').disabled=!ready;
+ $('#feedHint').textContent=feedState==='loading'?'Feed-Link wird geladen…':feedState==='elsewhere'?'Dein aktueller Feed-Link wurde auf einem anderen Gerät erstellt. Öffne „Kalender verbinden“ einmal dort, dann steht er hier auch bereit. Oder erstelle einen neuen Link; bestehende Abos musst du dann neu einrichten.':'Dein Feed-Link ist geheim. Wer den Link kennt, kann deinen Kalender lesen.';
+}
+async function createFeed(owner){const b=crypto.getRandomValues(new Uint8Array(32)),token=[...b].map(v=>v.toString(16).padStart(2,'0')).join('');const {error}=await supa.from('calendar_feeds').upsert({user_id:owner,token_hash:await sha256(token),token},{onConflict:'user_id'});if(error)throw error;return token;}
+async function loadFeed(){
+ if(!user||!supa)return;const owner=user.id,key=`schichtplan.feed.${owner}`;feedState='loading';renderFeed();
+ try{
+  const {data,error}=await supa.from('calendar_feeds').select('token,token_hash').eq('user_id',owner).maybeSingle();if(error)throw error;
+  let token=data?.token||'';
+  // Ältere Links liegen nur auf dem Gerät, das sie erstellt hat: dort einmalig ins Konto übernehmen.
+  if(!token&&data){const local=localStorage.getItem(key);if(local&&await sha256(local)===data.token_hash){const {error:saveError}=await supa.from('calendar_feeds').update({token:local}).eq('user_id',owner);if(saveError)throw saveError;token=local;}}
+  if(!data)token=await createFeed(owner);
+  if(user?.id!==owner)return;
+  if(token)localStorage.setItem(key,token);
+  feedUrl=token?feedLink(token):'';feedState=token?'':'elsewhere';
+ }catch(error){feedState='';toast('Feed-Link konnte nicht geladen werden: '+error.message);}
+ renderFeed();
+}
+function feedShareText(){return `Abonniere meinen Schichtkalender:\n${feedUrl.replace(/^https:/,'webcal:')}\n\nFalls sich der Link nicht öffnet: iPhone-Einstellungen › Apps › Kalender › Kalenderaccounts › Account hinzufügen › Andere › Kalenderabo hinzufügen und diese Adresse einfügen:\n${feedUrl}`;}
+async function shareFeed(){
+ if(!feedUrl)return;const text=feedShareText();
+ if(navigator.share){try{await navigator.share({title:'Mein Schichtkalender',text});}catch(error){if(error?.name!=='AbortError')toast('Teilen nicht möglich: '+error.message);}return;}
+ try{await navigator.clipboard.writeText(text);toast('Einladungstext mit Abo-Link kopiert.');}catch{toast('Kopieren nicht möglich. Bitte erneut versuchen.');}
+}
+async function copyFeed(){if(!feedUrl)return;try{await navigator.clipboard.writeText(feedUrl);toast('Privater Feed-Link kopiert.');}catch{toast('Kopieren nicht möglich. Bitte erneut versuchen.');}}
+async function rotateFeed(){
+ if(!user||!supa||!window.confirm('Neuen Feed-Link erstellen? Alle bisherigen Abos, auch bei anderen Personen, bekommen dann keine Einträge mehr und müssen neu eingerichtet werden.'))return;
+ const owner=user.id;try{const token=await createFeed(owner);if(user?.id!==owner)return;localStorage.setItem(`schichtplan.feed.${owner}`,token);feedUrl=feedLink(token);feedState='';renderFeed();toast('Neuer Feed-Link erstellt. Teile ihn jetzt erneut.');}catch(error){toast(error.message);}
+}
 form.elements.date.value=dateISO(today);form.elements.endDate.value=dateISO(today);$('#todayLabel').textContent=new Intl.DateTimeFormat('de-DE',{weekday:'long',day:'numeric',month:'long'}).format(today);updateFields();
 $('#kind').onchange=()=>{const old=entries.find(e=>e.id===editingId);if($('#kind').value==='sick'&&old&&['shift','office'].includes(old.kind)){form.elements.sickCredit.value=hoursMinutes(mins({...old,actual_start:null,actual_end:null}));form.elements.endDate.value=old.start_date;}updateFields();};form.elements.date.onchange=()=>{if(!$('#endDateWrap').hidden&&!form.elements.endDate.value)form.elements.endDate.value=form.elements.date.value;renderHolidayDayHint();};$('#prevMonth').onclick=()=>{cursor.setMonth(cursor.getMonth()-1);selectedDate=null;render()};$('#nextMonth').onclick=()=>{cursor.setMonth(cursor.getMonth()+1);selectedDate=null;render()};$('#clearDay').onclick=()=>{selectedDate=null;render()};
-form.onsubmit=async ev=>{ev.preventDefault();const wasEditing=!!editingId,d=new FormData(form),kind=d.get('kind'),timed=['shift','office'].includes(kind),dateRange=['rest','vacation','sick'].includes(kind),endDate=dateRange?(d.get('endDate')||d.get('date')):d.get('date');if(endDate<d.get('date')){toast('Das Enddatum muss nach dem Beginn liegen.');return}const sickCredit=kind==='sick'?parseHoursMinutes(d.get('sickCredit')):null;if(kind==='sick'&&(sickCredit===null||sickCredit<0||sickCredit>1440)){toast('Bitte ursprüngliche Schichtdauer als Stunden:Minuten eingeben, z. B. 8:07.');return;}const e={sick_daily_minutes:sickCredit,id:editingId||crypto.randomUUID(),kind,title:kind==='office'?d.get('officeTitle').trim():'',shift_number:d.get('number').trim(),start_date:d.get('date'),end_date:endDate,start_time:timed?d.get('start'):null,end_time:timed?d.get('end'):null,break_minutes:timed?Number(d.get('breakMinutes')):0,actual_start:kind==='shift'?(d.get('actualStart')||null):null,actual_end:kind==='shift'?(d.get('actualEnd')||null):null};try{await saveEntry(e);cursor=new Date(`${e.start_date}T12:00:00`);cursor.setDate(1);resetEntryForm(e.start_date);selectedDate=e.start_date;dayPanelMode='details';render();toast(wasEditing?'Änderungen gespeichert.':'Eintrag gespeichert.')}catch(err){toast('Speichern fehlgeschlagen: '+err.message)}};
+form.onsubmit=async ev=>{ev.preventDefault();const wasEditing=!!editingId,d=new FormData(form),kind=d.get('kind'),timed=['shift','office'].includes(kind),dateRange=['rest','vacation','sick'].includes(kind),endDate=dateRange?(d.get('endDate')||d.get('date')):d.get('date');if(endDate<d.get('date')){toast('Das Enddatum muss nach dem Beginn liegen.');return}const sickCredit=kind==='sick'?parseHoursMinutes(d.get('sickCredit')):null;if(kind==='sick'&&(sickCredit===null||sickCredit<0||sickCredit>1440)){toast('Bitte ursprüngliche Schichtdauer als Stunden:Minuten eingeben, z. B. 8:07.');return;}const e={sick_daily_minutes:sickCredit,id:editingId||crypto.randomUUID(),kind,title:kind==='office'?d.get('officeTitle').trim():'',shift_number:d.get('number').trim(),start_date:d.get('date'),end_date:endDate,start_time:timed?d.get('start'):null,end_time:timed?d.get('end'):null,break_minutes:timed?Number(d.get('breakMinutes')):0,actual_start:kind==='shift'?(d.get('actualStart')||null):null,actual_end:kind==='shift'?(d.get('actualEnd')||null):null};const monthOf=date=>{const m=new Date(`${date}T12:00:00`);return [dateISO(new Date(m.getFullYear(),m.getMonth(),1)),dateISO(new Date(m.getFullYear(),m.getMonth()+1,0)),monthFmt.format(m)];},[mFrom,mTo,mName]=monthOf(e.start_date),monthBefore=totalCredit(mFrom,mTo);
+ try{await saveEntry(e);cursor=new Date(`${e.start_date}T12:00:00`);cursor.setDate(1);resetEntryForm(e.start_date);selectedDate=e.start_date;dayPanelMode='details';render();const monthAfter=totalCredit(mFrom,mTo),diff=monthAfter-monthBefore;toast(`${wasEditing?'Änderungen gespeichert.':'Eintrag gespeichert.'} ${mName}: ${fmtM(monthAfter)} (${diff?signedMinutes(diff):'unverändert'})`)}catch(err){toast('Speichern fehlgeschlagen: '+err.message)}};
 $('#annualTargetForm').onsubmit=saveAnnualTarget;
 $('#openHolidaySetup').onclick=()=>{try{requireAccount();$('#annualDialog').showModal();$('#holidayState').focus();}catch(error){toast(error.message);}};
 $('#holidaySettingsForm').onsubmit=saveHolidaySettings;$('#holidayState').onchange=updateHolidayOptions;
 $('#openingForm').onsubmit=saveOpening;$('#undoDelete').onclick=undoDelete;$('#annualPrev').onclick=()=>{cursor=new Date(cursor.getFullYear()-1,cursor.getMonth(),1);selectedDate=null;render();};$('#annualNextYear').onclick=()=>{cursor=new Date(cursor.getFullYear()+1,cursor.getMonth(),1);selectedDate=null;render();};
 $('#cancelEdit').onclick=()=>{if(selectedDate)openDay(selectedDate);else{resetEntryForm();renderDayPanel();}};
-$('#downloadIcs').onclick=downloadIcs;$('#copyFeed').onclick=()=>feedToken(false).catch(e=>toast(e.message));$('#rotateFeed').onclick=()=>feedToken(true).catch(e=>toast(e.message));
+$('#downloadIcs').onclick=downloadIcs;$('#shareFeed').onclick=shareFeed;$('#copyFeed').onclick=copyFeed;$('#rotateFeed').onclick=rotateFeed;
 const dialog=$('#authDialog');
 function setAuthMode(mode){
  authMode=mode;const signup=mode==='signup',reset=mode==='reset';
@@ -342,7 +378,7 @@ function openFeature(selector){try{requireAccount();closeAppMenu();$(selector).s
 if($('#openAnnual'))$('#openAnnual').onclick=()=>openFeature('#annualDialog');
 if($('#closeAnnual'))$('#closeAnnual').onclick=()=>$('#annualDialog').close();
 $('#openFriends').onclick=()=>openFeature('#friendsDialog');
-$('#openCalendar').onclick=()=>openFeature('#calendarDialog');
+$('#openCalendar').onclick=()=>{openFeature('#calendarDialog');if($('#calendarDialog').open)loadFeed();};
 $('#closeFriends').onclick=()=>$('#friendsDialog').close();
 $('#closeCalendar').onclick=()=>$('#calendarDialog').close();
 for(const id of ['annualDialog','friendsDialog','calendarDialog']){
