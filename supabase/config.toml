@@ -1,2 +1,5 @@
 [functions.calendar-feed]
 verify_jwt = false
+
+[functions.rmv-stops]
+verify_jwt = true

@@ -14,6 +14,7 @@ function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');se
 function showMode(){
  window.schichtFriends?.setSession(supa,authReady&&!needsPasswordSetup?user:null,entries);
  const ready=!!(supa&&user&&authReady&&!needsPasswordSetup&&!awaitingLinkConfirmation);
+ window.schichtCommute?.setSession(supa,ready?user:null);
  $('#appContent').hidden=!ready;$('#authGate').hidden=ready||!authReady;
  if($('#appMenu')){
   $('#openFriends').hidden=!ready;$('#openCalendar').hidden=!ready;

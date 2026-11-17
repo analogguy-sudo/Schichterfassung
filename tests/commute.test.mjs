@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import { fixedLeave, latestArrival, parseStops, pickTrip } from '../supabase/functions/calendar-feed/commute.ts';
+const s = { enabled: true, walk_to_stop: 10, from_stop_name: 'A', from_stop_id: null, to_stop_name: 'B', to_stop_id: null, walk_from_stop: 5, buffer_minutes: 10, ride_minutes: 20 };
+assert.deepEqual(fixedLeave('2026-11-18', '05:30', s), { day: '2026-11-18', time: '04:45' });
+assert.deepEqual(fixedLeave('2026-11-18', '00:20', s), { day: '2026-11-17', time: '23:35' });
+assert.deepEqual(latestArrival('2026-11-18', '05:30', s), { day: '2026-11-18', time: '05:15' });
+assert.deepEqual(parseStops({ stopLocationOrCoordLocation: [{ StopLocation: { id: 'x1', name: 'Frankfurt (Main) Markus-Krankenhaus' } }, { CoordLocation: {} }] }), [{ id: 'x1', name: 'Frankfurt (Main) Markus-Krankenhaus' }]);
+const leg = (o, d) => ({ LegList: { Leg: [{ type: 'JNY', Product: [{ name: 'Tram 16' }], Origin: { date: '2026-11-18', time: o }, Destination: { date: '2026-11-18', time: d } }] } });
+const pick = pickTrip({ Trip: [leg('04:35:00', '04:55:00'), leg('04:50:00', '05:10:00'), leg('05:05:00', '05:25:00')] }, { day: '2026-11-18', time: '05:15' });
+assert.deepEqual(pick, { day: '2026-11-18', time: '04:50', line: 'Tram 16', arrival: '05:10' });
+assert.equal(pickTrip({ Trip: leg('05:05:00', '05:25:00') }, { day: '2026-11-18', time: '05:15' }), null);
+console.log('commute ok');
