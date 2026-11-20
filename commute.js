@@ -2,7 +2,7 @@
 (function(){
 'use strict';
 const $=s=>document.querySelector(s);
-const DEFAULTS={enabled:true,walk_to_stop:10,from_stop_name:'',from_stop_id:null,to_stop_name:'',to_stop_id:null,walk_from_stop:5,buffer_minutes:10,ride_minutes:20};
+const DEFAULTS={enabled:true,walk_to_stop:10,from_stop_name:'',from_stop_id:null,to_stop_name:'',to_stop_id:null,walk_from_stop:5,buffer_minutes:10,ride_minutes:20,preferred_lines:''};
 let client=null,account=null,loadedFor=null,generation=0;
 const found={from:new Map(),to:new Map()},ids={from:null,to:null};
 const hint=t=>{$('#commuteHint').textContent=t;};
@@ -13,7 +13,7 @@ function fill(row){
  $('#commuteEnabled').checked=!!s.enabled;
  $('#commuteWalkTo').value=s.walk_to_stop;$('#commuteWalkFrom').value=s.walk_from_stop;
  $('#commuteBuffer').value=s.buffer_minutes;$('#commuteRide').value=s.ride_minutes;
- $('#commuteFrom').value=s.from_stop_name;$('#commuteTo').value=s.to_stop_name;
+ $('#commuteFrom').value=s.from_stop_name;$('#commuteTo').value=s.to_stop_name;$('#commuteLines').value=s.preferred_lines||'';
  ids.from=s.from_stop_id;ids.to=s.to_stop_id;
  toggle();
 }
@@ -48,16 +48,16 @@ function search(side){
 async function save(event){
  event.preventDefault();if(!client||!account)return;
  const walkTo=num('#commuteWalkTo',0,120),walkFrom=num('#commuteWalkFrom',0,120),buffer=num('#commuteBuffer',0,120),ride=num('#commuteRide',1,240);
- const from=$('#commuteFrom').value.trim(),to=$('#commuteTo').value.trim();
+ const from=$('#commuteFrom').value.trim(),to=$('#commuteTo').value.trim(),lines=$('#commuteLines').value.split(/[,;\s]+/).map(l=>l.trim().toUpperCase()).filter(Boolean).join(', ');
  if([walkTo,walkFrom,buffer,ride].includes(null)){hint('Bitte ganze Minuten eintragen (0 bis 120, Fahrzeit bis 240).');return;}
  if(!from||!to){hint('Bitte Start- und Ziel-Haltestelle eintragen.');return;}
  const row={user_id:account.id,enabled:$('#commuteEnabled').checked,walk_to_stop:walkTo,walk_from_stop:walkFrom,buffer_minutes:buffer,ride_minutes:ride,
-  from_stop_name:from,from_stop_id:found.from.get(from)||ids.from||null,to_stop_name:to,to_stop_id:found.to.get(to)||ids.to||null,updated_at:new Date().toISOString()};
+  from_stop_name:from,from_stop_id:found.from.get(from)||ids.from||null,to_stop_name:to,to_stop_id:found.to.get(to)||ids.to||null,preferred_lines:lines,updated_at:new Date().toISOString()};
  $('#commuteSave').disabled=true;hint('Wird gespeichert…');
  const {error}=await client.from('commute_settings').upsert(row,{onConflict:'user_id'});
  $('#commuteSave').disabled=false;
  if(error){hint('Speichern fehlgeschlagen: '+error.message);return;}
- ids.from=row.from_stop_id;ids.to=row.to_stop_id;
+ ids.from=row.from_stop_id;ids.to=row.to_stop_id;$('#commuteLines').value=lines;
  const leave=walkTo+ride+walkFrom+buffer;
  hint(row.enabled?`Gespeichert. Ohne Fahrplan geht es ${leave} Minuten vor Dienstbeginn los. Das Kalender-Abo übernimmt die Änderung beim nächsten Aktualisieren.`:'Gespeichert. Die Wegezeit erscheint nicht mehr im Kalender.');
 }

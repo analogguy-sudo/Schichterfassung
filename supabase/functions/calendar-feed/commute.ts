@@ -10,6 +10,7 @@ export type CommuteSettings = {
   walk_from_stop: number;
   buffer_minutes: number;
   ride_minutes: number;
+  preferred_lines?: string | null;
 };
 
 export type Departure = { day: string; time: string; line: string; arrival: string };
@@ -48,8 +49,21 @@ export function parseStops(json: any): { id: string; name: string }[] {
   }).map((stop: any) => ({ id: String(stop.id), name: String(stop.name) }));
 }
 
+// Feste Linien aus der Eingabe, z. B. "16, N16" → ['16', 'N16'].
+export function parseLines(text: string | null | undefined) {
+  return String(text ?? '').split(/[,;\s]+/).map((line) => line.trim().toUpperCase()).filter(Boolean);
+}
+
+// Liniennummer einer Fahrt, z. B. "Tram 16" → "16", "Bus N16" → "N16".
+export function lineOf(leg: any) {
+  const product = asArray(leg?.Product)[0] ?? {};
+  const raw = String(product.line ?? product.displayNumber ?? product.name ?? leg?.name ?? '').trim();
+  return raw.split(/\s+/).pop()!.toUpperCase();
+}
+
 // Aus einer RMV trip-Antwort die späteste Verbindung wählen, die rechtzeitig ankommt.
-export function pickTrip(json: any, arriveBy: { day: string; time: string }): Departure | null {
+// Mit festen Linien zählen nur Verbindungen, deren Fahrten alle auf diesen Linien liegen.
+export function pickTrip(json: any, arriveBy: { day: string; time: string }, lines: string[] = []): Departure | null {
   const target = `${arriveBy.day}T${arriveBy.time}`;
   let best: Departure | null = null;
   let bestArrival = '';
@@ -61,7 +75,9 @@ export function pickTrip(json: any, arriveBy: { day: string; time: string }): De
     const arrival = `${last.date}T${String(last.time).slice(0, 5)}`;
     if (arrival > target) continue;
     if (arrival <= bestArrival) continue;
-    const ride = legs.find((leg: any) => leg?.type === 'JNY');
+    const rides = legs.filter((leg: any) => leg?.type === 'JNY');
+    if (lines.length && (!rides.length || !rides.every((leg: any) => lines.includes(lineOf(leg))))) continue;
+    const ride = rides[0];
     const line = String(ride?.Product?.[0]?.name ?? ride?.Product?.name ?? ride?.name ?? '').trim();
     bestArrival = arrival;
     best = { day: String(first.date), time: String(first.time).slice(0, 5), line, arrival: String(last.time).slice(0, 5) };

@@ -1,4 +1,4 @@
-import { type CommuteSettings, type Departure, fixedLeave, latestArrival, parseStops, pickTrip } from './commute.ts';
+import { type CommuteSettings, type Departure, fixedLeave, latestArrival, parseLines, parseStops, pickTrip } from './commute.ts';
 
 const encoder = new TextEncoder();
 const projectUrl = Deno.env.get('SUPABASE_URL')!;
@@ -92,11 +92,11 @@ async function liveDeparture(day: string, shiftStart: string, settings: CommuteS
     date: arriveBy.day,
     time: arriveBy.time,
     searchForArrival: '1',
-    // Zwei frühere und eine spätere Verbindung; numF muss mindestens 1 sein.
-    numB: '3',
+    // Fünf frühere und eine spätere Verbindung (Höchstwert 6), damit nach dem Linienfilter genug übrig bleiben.
+    numB: '5',
     numF: '1',
   });
-  return pickTrip(json, arriveBy);
+  return pickTrip(json, arriveBy, parseLines(settings.preferred_lines));
 }
 
 // 'none': im Fahrplan keine Verbindung, die rechtzeitig ankommt; { error }: RMV-Abfrage fehlgeschlagen.
@@ -121,12 +121,13 @@ function commuteEvent(entry: any, now: string, settings: CommuteSettings, result
     ? `🚶 Los · ${leave.time}${line ? ` · ${line}` : ''} ab ${live.time}`
     : `🚶 Los · ${leave.time}${result ? ' · ohne Fahrplan' : ''}`;
   const arriveBy = latestArrival(entry.start_date, shiftStart, settings).time;
+  const lines = parseLines(settings.preferred_lines);
   const description = [
     `${settings.walk_to_stop} min Fußweg zu ${from}`,
     live
       ? `${line || 'Abfahrt'} ${live.time} → an ${to} ${live.arrival} (laut RMV-Fahrplan)`
       : `ca. ${settings.ride_minutes} min Fahrt bis ${to} (feste Fahrzeit)`,
-    ...(result === 'none' ? [`Hinweis: Im RMV-Fahrplan gibt es keine Verbindung, die bis ${arriveBy} an ${to} ankommt.`] : []),
+    ...(result === 'none' ? [`Hinweis: Im RMV-Fahrplan gibt es keine Verbindung${lines.length ? ` mit Linie ${lines.join(' oder ')}` : ''}, die bis ${arriveBy} an ${to} ankommt.`] : []),
     ...(failure ? [`Hinweis: Fahrplanabfrage fehlgeschlagen (${failure}).`] : []),
     `${settings.walk_from_stop} min Fußweg zur Dienststelle`,
     `${settings.buffer_minutes} min Puffer vor Dienstbeginn ${shiftStart.slice(0, 5)}`,

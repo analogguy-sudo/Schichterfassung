@@ -63,6 +63,7 @@ create table if not exists public.commute_settings (
   walk_from_stop integer not null default 5 check (walk_from_stop between 0 and 120),
   buffer_minutes integer not null default 10 check (buffer_minutes between 0 and 120),
   ride_minutes integer not null default 20 check (ride_minutes between 1 and 240),
+  preferred_lines text not null default '',
   updated_at timestamptz not null default now()
 );
 alter table public.commute_settings enable row level security;

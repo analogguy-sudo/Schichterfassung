@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { fixedLeave, latestArrival, parseStops, pickTrip } from '../supabase/functions/calendar-feed/commute.ts';
+import { fixedLeave, latestArrival, lineOf, parseLines, parseStops, pickTrip } from '../supabase/functions/calendar-feed/commute.ts';
 const s = { enabled: true, walk_to_stop: 10, from_stop_name: 'A', from_stop_id: null, to_stop_name: 'B', to_stop_id: null, walk_from_stop: 5, buffer_minutes: 10, ride_minutes: 20 };
 assert.deepEqual(fixedLeave('2026-11-18', '05:30', s), { day: '2026-11-18', time: '04:45' });
 assert.deepEqual(fixedLeave('2026-11-18', '00:20', s), { day: '2026-11-17', time: '23:35' });
@@ -9,4 +9,12 @@ const leg = (o, d) => ({ LegList: { Leg: [{ type: 'JNY', Product: [{ name: 'Tram
 const pick = pickTrip({ Trip: [leg('04:35:00', '04:55:00'), leg('04:50:00', '05:10:00'), leg('05:05:00', '05:25:00')] }, { day: '2026-11-18', time: '05:15' });
 assert.deepEqual(pick, { day: '2026-11-18', time: '04:50', line: 'Tram 16', arrival: '05:10' });
 assert.equal(pickTrip({ Trip: leg('05:05:00', '05:25:00') }, { day: '2026-11-18', time: '05:15' }), null);
+assert.deepEqual(parseLines(' 16, n16;'), ['16', 'N16']);
+assert.equal(lineOf({ Product: [{ name: 'Bus N16', line: 'N16' }] }), 'N16');
+assert.equal(lineOf({ Product: { name: 'Tram 16' } }), '16');
+const via = (name, o, d) => ({ LegList: { Leg: [{ type: 'JNY', Product: [{ name }], Origin: { date: '2026-11-18', time: o }, Destination: { date: '2026-11-18', time: d } }] } });
+const mixed = { Trip: [via('Tram 16', '04:30:00', '04:50:00'), via('Bus N16', '04:40:00', '05:05:00'), via('Bus 39', '04:50:00', '05:12:00')] };
+assert.equal(pickTrip(mixed, { day: '2026-11-18', time: '05:15' }).line, 'Bus 39');
+assert.deepEqual(pickTrip(mixed, { day: '2026-11-18', time: '05:15' }, ['16', 'N16']), { day: '2026-11-18', time: '04:40', line: 'Bus N16', arrival: '05:05' });
+assert.equal(pickTrip({ Trip: via('Bus 39', '04:50:00', '05:12:00') }, { day: '2026-11-18', time: '05:15' }, ['16', 'N16']), null);
 console.log('commute ok');
