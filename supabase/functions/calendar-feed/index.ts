@@ -57,7 +57,10 @@ async function rmv(path: string, params: Record<string, string>) {
   const query = new URLSearchParams({ ...params, accessId: rmvKey, format: 'json' });
   const response = await fetch(`${RMV_BASE}/${path}?${query}`, { signal: AbortSignal.timeout(6000) });
   if (!response.ok) throw new Error(`RMV ${path} ${response.status}`);
-  return await response.json();
+  const json = await response.json();
+  // HAFAS meldet manche Fehler mit Status 200 und errorCode im JSON.
+  if (json?.errorCode) throw new Error(`RMV ${path} ${json.errorCode}`);
+  return json;
 }
 
 // Fehlende Haltestellen-IDs einmalig über den Namen auflösen und speichern.
@@ -89,13 +92,19 @@ async function liveDeparture(day: string, shiftStart: string, settings: CommuteS
     date: arriveBy.day,
     time: arriveBy.time,
     searchForArrival: '1',
-    numB: '2',
-    numF: '0',
+    // Zwei frühere und eine spätere Verbindung; numF muss mindestens 1 sein.
+    numB: '3',
+    numF: '1',
   });
   return pickTrip(json, arriveBy);
 }
 
-function commuteEvent(entry: any, now: string, settings: CommuteSettings, live: Departure | null) {
+// 'none': im Fahrplan keine Verbindung, die rechtzeitig ankommt; { error }: RMV-Abfrage fehlgeschlagen.
+type LiveResult = Departure | 'none' | { error: string };
+
+function commuteEvent(entry: any, now: string, settings: CommuteSettings, result: LiveResult | undefined) {
+  const live = result && typeof result === 'object' && 'time' in result ? result : null;
+  const failure = result && typeof result === 'object' && 'error' in result ? result.error : '';
   const shiftStart = entry.start_time;
   const from = settings.from_stop_name || 'Start-Haltestelle';
   const to = settings.to_stop_name || 'Ziel-Haltestelle';
@@ -110,12 +119,15 @@ function commuteEvent(entry: any, now: string, settings: CommuteSettings, live: 
   const line = live?.line ? live.line.replace(/\s+/g, ' ') : '';
   const summary = live
     ? `🚶 Los · ${leave.time}${line ? ` · ${line}` : ''} ab ${live.time}`
-    : `🚶 Los · ${leave.time}`;
+    : `🚶 Los · ${leave.time}${result ? ' · ohne Fahrplan' : ''}`;
+  const arriveBy = latestArrival(entry.start_date, shiftStart, settings).time;
   const description = [
     `${settings.walk_to_stop} min Fußweg zu ${from}`,
     live
       ? `${line || 'Abfahrt'} ${live.time} → an ${to} ${live.arrival} (laut RMV-Fahrplan)`
       : `ca. ${settings.ride_minutes} min Fahrt bis ${to} (feste Fahrzeit)`,
+    ...(result === 'none' ? [`Hinweis: Im RMV-Fahrplan gibt es keine Verbindung, die bis ${arriveBy} an ${to} ankommt.`] : []),
+    ...(failure ? [`Hinweis: Fahrplanabfrage fehlgeschlagen (${failure}).`] : []),
     `${settings.walk_from_stop} min Fußweg zur Dienststelle`,
     `${settings.buffer_minutes} min Puffer vor Dienstbeginn ${shiftStart.slice(0, 5)}`,
   ].join('\n');
@@ -149,7 +161,7 @@ async function commuteEvents(userId: string, entries: any[], now: string) {
   }));
   if (!settings?.enabled) return new Map<string, string>();
   const shifts = entries.filter((entry) => entry.kind === 'shift' && entry.start_time);
-  const live = new Map<string, Departure | null>();
+  const live = new Map<string, LiveResult>();
   if (rmvKey && settings.from_stop_name && settings.to_stop_name) {
     try {
       await resolveStops(userId, settings);
@@ -164,8 +176,9 @@ async function commuteEvents(userId: string, entries: any[], now: string) {
       for (let i = 0; i < upcoming.length; i += 4) {
         await Promise.all(upcoming.slice(i, i + 4).map(async (entry) => {
           try {
-            live.set(entry.id, await liveDeparture(entry.start_date, entry.start_time, settings));
+            live.set(entry.id, await liveDeparture(entry.start_date, entry.start_time, settings) ?? 'none');
           } catch (error) {
+            live.set(entry.id, { error: error instanceof Error ? error.message : String(error) });
             console.error('Trip lookup failed:', error instanceof Error ? error.message : error);
           }
         }));
@@ -173,7 +186,7 @@ async function commuteEvents(userId: string, entries: any[], now: string) {
     }
   }
   const events = new Map<string, string>();
-  for (const entry of shifts) events.set(entry.id, commuteEvent(entry, now, settings, live.get(entry.id) ?? null));
+  for (const entry of shifts) events.set(entry.id, commuteEvent(entry, now, settings, live.get(entry.id)));
   return events;
 }
 
