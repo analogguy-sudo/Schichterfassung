@@ -161,7 +161,9 @@ async function commuteEvents(userId: string, entries: any[], now: string) {
     select: '*', user_id: `eq.${userId}`, limit: '1',
   }));
   if (!settings?.enabled) return new Map<string, string>();
-  const shifts = entries.filter((entry) => entry.kind === 'shift' && entry.start_time);
+  // Nur kommende Schichten: vergangene „Los“-Termine haben keinen Nutzen mehr.
+  const today = new Date().toISOString().slice(0, 10);
+  const shifts = entries.filter((entry) => entry.kind === 'shift' && entry.start_time && entry.start_date >= today);
   const live = new Map<string, LiveResult>();
   if (rmvKey && settings.from_stop_name && settings.to_stop_name) {
     try {
@@ -170,7 +172,6 @@ async function commuteEvents(userId: string, entries: any[], now: string) {
       console.error('Stop lookup failed:', error instanceof Error ? error.message : error);
     }
     if (settings.from_stop_id && settings.to_stop_id) {
-      const today = new Date().toISOString().slice(0, 10);
       const limit = new Date(Date.now() + LIVE_DAYS * 86_400_000).toISOString().slice(0, 10);
       const upcoming = shifts.filter((entry) => entry.start_date >= today && entry.start_date <= limit);
       // In kleinen Gruppen abfragen, damit der RMV nicht überlastet wird.
@@ -196,7 +197,10 @@ const entryTypes: Record<string, string> = {
 };
 
 Deno.serve(async (request) => {
-  const token = new URL(request.url).searchParams.get('token');
+  const params = new URL(request.url).searchParams;
+  const token = params.get('token');
+  // Geteilte Links (z. B. für die Familie) enthalten wege=0: dann ohne Wegezeit-Termine und Wecker.
+  const withCommute = params.get('wege') !== '0';
   if (!token || token.length < 32) return new Response('Not found', { status: 404 });
 
   try {
@@ -217,7 +221,7 @@ Deno.serve(async (request) => {
     const entries = await getRows<any>('entries', entryParams);
     const now = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
     let commute = new Map<string, string>();
-    try {
+    if (withCommute) try {
       commute = await commuteEvents(userId, entries, now);
     } catch (error) {
       // Der Feed soll auch ohne Wegezeit funktionieren.

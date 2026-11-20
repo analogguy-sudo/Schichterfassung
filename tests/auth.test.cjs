@@ -65,7 +65,7 @@ function setup({active=null,href='https://analogguy-sudo.github.io/Schichterfass
  const wait=async x=>{for(let i=0;i<8;i++)await x.settle();};
  let fx=setup({active:session('one')});await fx.settle();await fx.run('loadFeed()');await wait(fx);
  assert.equal(fx.feedRow.upserts,1);assert.match(fx.run('feedUrl'),/calendar-feed\?token=[0-9a-f]{64}$/);assert.equal(fx.feedRow.value.token,fx.run('feedUrl').split('token=')[1]);
- await fx.run('shareFeed()');assert.match(fx.shared[0].text,/^Abonniere meinen Schichtkalender:\nwebcal:\/\/test\.supabase\.co\/functions\/v1\/calendar-feed\?token=/);assert.match(fx.shared[0].text,/Kalenderabo hinzufügen[\s\S]*\nhttps:\/\/test\.supabase\.co/);
+ await fx.run('shareFeed()');assert.match(fx.shared[0].text,/^Abonniere meinen Schichtkalender:\nwebcal:\/\/test\.supabase\.co\/functions\/v1\/calendar-feed\?token=/);assert.match(fx.shared[0].text,/Kalenderabo hinzufügen[\s\S]*\nhttps:\/\/test\.supabase\.co/);assert.match(fx.shared[0].text,/^Abonniere[^\n]*\nwebcal:[^\n]*&wege=0\n/);assert.match(fx.shared[0].text,/\nhttps:[^\n]*&wege=0$/);
  const stable='a'.repeat(64);fx=setup({active:session('one'),feed:{token:stable,token_hash:await hashOf(stable)}});await fx.settle();await fx.run('loadFeed()');await wait(fx);
  assert.equal(fx.feedRow.upserts,0);assert.ok(fx.run('feedUrl').endsWith(stable));
  const legacy='b'.repeat(64),legacyStore=new Map([['schichtplan.feed.one',legacy]]);fx=setup({active:session('one'),storage:legacyStore,feed:{token:null,token_hash:await hashOf(legacy)}});await fx.settle();await fx.run('loadFeed()');await wait(fx);

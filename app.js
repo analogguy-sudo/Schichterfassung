@@ -292,7 +292,8 @@ async function loadFeed(){
  }catch(error){feedState='';toast('Feed-Link konnte nicht geladen werden: '+error.message);}
  renderFeed();
 }
-function feedShareText(){return `Abonniere meinen Schichtkalender:\n${feedUrl.replace(/^https:/,'webcal:')}\n\nFalls sich der Link nicht öffnet: iPhone-Einstellungen › Apps › Kalender › Kalenderaccounts › Account hinzufügen › Andere › Kalenderabo hinzufügen und diese Adresse einfügen:\n${feedUrl}`;}
+// Geteilte Links zeigen nur die Schichten, ohne Wegezeit-Termine und Wecker.
+function feedShareText(){const link=`${feedUrl}&wege=0`;return `Abonniere meinen Schichtkalender:\n${link.replace(/^https:/,'webcal:')}\n\nFalls sich der Link nicht öffnet: iPhone-Einstellungen › Apps › Kalender › Kalenderaccounts › Account hinzufügen › Andere › Kalenderabo hinzufügen und diese Adresse einfügen:\n${link}`;}
 async function shareFeed(){
  if(!feedUrl){if(feedState==='elsewhere')rotateFeed();return;}const text=feedShareText();
  if(navigator.share){try{await navigator.share({title:'Mein Schichtkalender',text});}catch(error){if(error?.name!=='AbortError')toast('Teilen nicht möglich: '+error.message);}return;}
